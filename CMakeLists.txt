@@ -29,8 +29,8 @@ if(Java_JAVA_EXECUTABLE)
     # Closure Compiler
     ExternalProject_Add(
         ClosureCompiler
-        URL "http://closure-compiler.googlecode.com/files/compiler-20120305.tar.gz"
-        URL_MD5 513344df6f18bfa00b17f034cabf897d
+        URL "http://closure-compiler.googlecode.com/files/compiler-20120430.zip"
+        URL_MD5 352d51842e7fae5e8d190475da5086f3
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
         INSTALL_COMMAND ""
