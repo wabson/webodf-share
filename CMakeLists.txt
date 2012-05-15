@@ -35,7 +35,7 @@ if(Java_JAVA_EXECUTABLE)
         BUILD_COMMAND ""
         INSTALL_COMMAND ""
     )
-    set(CLOSURE_JAR ${CMAKE_BINARY_DIR}/ClosureCompiler-prefix/src/ClosureCompiler/compiler.jar)
+    set(CLOSURE_JAR ${CMAKE_CURRENT_BINARY_DIR}/ClosureCompiler-prefix/src/ClosureCompiler/compiler.jar)
 endif(Java_JAVA_EXECUTABLE)
 
 # Rhino
@@ -48,7 +48,7 @@ if(Java_JAVA_EXECUTABLE)
         BUILD_COMMAND ""
         INSTALL_COMMAND ""
     )
-    set(RHINO ${CMAKE_BINARY_DIR}/Rhino-prefix/src/Rhino/js.jar)
+    set(RHINO ${CMAKE_CURRENT_BINARY_DIR}/Rhino-prefix/src/Rhino/js.jar)
 endif(Java_JAVA_EXECUTABLE)
 
 # JSDoc
@@ -60,7 +60,7 @@ ExternalProject_Add(
     BUILD_COMMAND ""
     INSTALL_COMMAND ""
 )
-set(JSDOCDIR ${CMAKE_BINARY_DIR}/JsDoc-prefix/src/JsDoc/jsdoc-toolkit)
+set(JSDOCDIR ${CMAKE_CURRENT_BINARY_DIR}/JsDoc-prefix/src/JsDoc/jsdoc-toolkit)
 
 # Node.JS
 ExternalProject_Add(
@@ -71,7 +71,7 @@ ExternalProject_Add(
     BUILD_IN_SOURCE 1
     INSTALL_COMMAND ""
 )
-set(NODE ${CMAKE_BINARY_DIR}/NodeJS-prefix/src/NodeJS/out/Release/node)
+set(NODE ${CMAKE_CURRENT_BINARY_DIR}/NodeJS-prefix/src/NodeJS/out/Release/node)
 
 # JSCoverage
 ExternalProject_Add(
@@ -83,7 +83,7 @@ ExternalProject_Add(
     BUILD_IN_SOURCE 1
     INSTALL_COMMAND ""
 )
-set(JSCOVERAGE ${CMAKE_BINARY_DIR}/JSCoverage-prefix/src/JSCoverage/jscoverage)
+set(JSCOVERAGE ${CMAKE_CURRENT_BINARY_DIR}/JSCoverage-prefix/src/JSCoverage/jscoverage)
 
 # Android
 if (NOT ANDROID_SDK_DIR)
@@ -133,15 +133,15 @@ add_subdirectory(programs)
 # package webodf
 set(WEBODFZIP webodf-${WEBODF_VERSION}.zip)
 set(WEBODFZIP_FILES
-  ${CMAKE_BINARY_DIR}/webodf/webodf-debug.js
-  ${CMAKE_BINARY_DIR}/webodf/webodf.js
-  ${CMAKE_SOURCE_DIR}/webodf/webodf.css
+  ${CMAKE_CURRENT_BINARY_DIR}/webodf/webodf-debug.js
+  ${CMAKE_CURRENT_BINARY_DIR}/webodf/webodf.js
+  ${CMAKE_CURRENT_SOURCE_DIR}/webodf/webodf.css
 )
 add_custom_command(
     OUTPUT ${WEBODFZIP}
     # zip using javascript code running in node.js
     COMMAND ${NODE} ARGS webodf/lib/runtime.js packwebodf.js
-        ${CMAKE_BINARY_DIR}/${WEBODFZIP}
+        ${CMAKE_CURRENT_BINARY_DIR}/${WEBODFZIP}
 #input files
         ${WEBODFZIP_FILES}
 #output files
@@ -153,7 +153,7 @@ add_custom_command(
         ${WEBODFZIP_FILES}
         webodf-debug.js
         webodf.js
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 add_custom_target(zip ALL DEPENDS ${WEBODFZIP})
 

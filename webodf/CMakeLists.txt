@@ -184,7 +184,7 @@ add_custom_target(nodetest ALL
 )
 if (QT4_FOUND)
   add_custom_target(qtjsruntimetest ALL
-      COMMAND ${CMAKE_BINARY_DIR}/programs/qtjsruntime/qtjsruntime ../lib/runtime.js tests.js
+      COMMAND ${CMAKE_CURRENT_BINARY_DIR}/../programs/qtjsruntime/qtjsruntime ../lib/runtime.js tests.js
       DEPENDS qtjsruntime jslintcheck
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests
       SOURCES ${LIBJSFILES}
