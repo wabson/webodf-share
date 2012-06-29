@@ -1,0 +1,44 @@
+<!--
+WebODF Ant build script
+=======================
+
+Author: Will Abson
+
+This script is designed to package up the WebODF files into a JAR file that can be deployed into Alfresco Share, such that the files will then be accessible via the 'resources' servlet.
+
+Due to licensing restrictions WebODF code cannot be distributed with Share Extras add-ons, therefore a separate JAR file is required to distribute these files.
+-->
+<project basedir="." default="dist-jar" name="Share Extras Build Script">
+
+   <!-- Allow override properties -->
+   <property file="build.properties" />
+   <property file="${user.home}/build.properties" />
+   
+   <!-- Property default values. May be overridden using above files or via command-line args -->
+   <property name="jar.name" value="share-webodf.jar" />
+
+   <!-- Additional property values. Generally should not be overridden -->
+   <property name="build.dir" value="${basedir}/build" />
+   <property name="dist.dir" value="${build.dir}/dist" />
+
+   <!-- Clean out the build and distribution directories -->
+   <target name="clean" description="Clean out all build directories">
+      <delete dir="${dist.dir}" />
+   </target>
+   
+   <!-- Create required prerequisite directory structure -->
+   <target name="prepare" description="Create initial build structures">
+      <mkdir dir="${dist.dir}" />
+   </target>
+
+   <!-- Build the JAR file -->
+   <target name="dist-jar" depends="clean, prepare" 
+      description="Build a JAR file containing configuration and resource files">
+      <jar destfile="${dist.dir}/${jar.name}">
+         <zipfileset dir="${build.dir}" includes="webodf/webodf.js" fullpath="WEB-INF/extras/modules/webodf/webodf.js" />
+         <zipfileset dir="${basedir}" includes="webodf/lib/runtime.js" fullpath="WEB-INF/extras/modules/webodf/lib/runtime.js" />
+         <zipfileset dir="${basedir}" includes="webodf/webodf.css" fullpath="WEB-INF/extras/modules/webodf/webodf.css" />
+      </jar>
+   </target>
+
+</project>
