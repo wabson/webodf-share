@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2011 KO GmbH <jos.van.den.oever@kogmbh.com>
+ * Copyright (C) 2012 KO GmbH <jos.van.den.oever@kogmbh.com>
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -28,13 +28,13 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/odfkit/webodf/
+ * @source: http://gitorious.org/webodf/webodf/
  */
 /*jslint nomen: true, evil: true, bitwise: true */
-/*global window: true, XMLHttpRequest: true, require: true, console: true,
-  process: true, __dirname: true, setTimeout: true, Packages: true, print: true,
-  readFile: true, quit: true, Buffer: true, ArrayBuffer: true, Uint8Array: true,
-  navigator: true, VBArray: true */
+/*global window, XMLHttpRequest, require, console, DOMParser,
+  process, __dirname, setTimeout, Packages, print,
+  readFile, quit, Buffer, ArrayBuffer, Uint8Array,
+  navigator, VBArray, alert, now */
 /**
  * Three implementations of a runtime for browser, node.js and rhino.
  */
@@ -48,16 +48,39 @@ function Runtime() {"use strict"; }
 /**
  * Abstraction of byte arrays.
  * @constructor
- * @extends {Array}
  * @param {!number} size
  */
 Runtime.ByteArray = function (size) {"use strict"; };
+
+/**
+ * @param {!string} name
+ * @return {*}
+ */
+Runtime.prototype.getVariable = function (name) { "use strict"; };
+
+/**
+ * @param {*} anything
+ * @return {!string}
+ */
+Runtime.prototype.toJson = function (anything) { "use strict"; };
+
+/**
+ * @param {!string} jsonstr
+ * @return {*}
+ */
+Runtime.prototype.fromJson = function (jsonstr) { "use strict"; };
+
 /**
  * @param {!number} start
  * @param {!number} end
  * @return {!Runtime.ByteArray}
  */
 Runtime.ByteArray.prototype.slice = function (start, end) {"use strict"; };
+
+/**
+ * @type {!number}
+ */
+Runtime.ByteArray.prototype.length = 0;
 /**
  * @param {!Array.<number>} array
  * @return {!Runtime.ByteArray}
@@ -161,9 +184,22 @@ Runtime.prototype.type = function () {"use strict"; };
  */
 Runtime.prototype.getDOMImplementation = function () {"use strict"; };
 /**
+ * @param {!string} xml
+ * @return {?Document}
+ */
+Runtime.prototype.parseXML = function (xml) {"use strict"; };
+/**
  * @return {?Window}
  */
 Runtime.prototype.getWindow = function () {"use strict"; };
+
+/**
+ * @param {!boolean} condition
+ * @param {!string} message
+ * @param {!function():undefined=} callback
+ * @return {undefined}
+ */
+Runtime.prototype.assert = function (condition, message, callback) { "use strict"; };
 
 /** @define {boolean} */
 var IS_COMPILED_CODE = false;
@@ -216,6 +252,38 @@ Runtime.byteArrayToString = function (bytearray, encoding) {
     }
     return result;
 };
+
+/**
+ * @param {!string} name
+ * @return {*}
+ */
+Runtime.getVariable = function (name) {
+    "use strict";
+    try {
+    return eval(name);
+    } catch (e) {
+        return undefined;
+    }
+};
+
+/**
+ * @param {*} anything
+ * @return {!string}
+ */
+Runtime.toJson = function (anything) {
+    "use strict";
+    return JSON.stringify(anything);
+};
+
+/**
+ * @param {!string} jsonstr
+ * @return {*}
+ */
+Runtime.fromJson = function (jsonstr) {
+    "use strict";
+    return JSON.parse(jsonstr);
+};
+
 Runtime.getFunctionName = function getFunctionName(f) {
     "use strict";
     var m;
@@ -340,13 +408,31 @@ function BrowserRuntime(logoutput) {
     this.byteArrayToString = Runtime.byteArrayToString;
 
     /**
+    * @param {!string} name
+    * @return {*}
+    */
+    this.getVariable = Runtime.getVariable;
+
+
+    /**
+    * @param {!string} jsonstr
+    * @return {*}
+    */
+    this.fromJson = Runtime.fromJson;
+    /**
+    * @param {*} anything
+    * @return {!string}
+    */
+    this.toJson = Runtime.toJson;
+
+    /**
      * @param {!string} msgOrCategory
      * @param {string=} msg
      * @return {undefined}
      */
     function log(msgOrCategory, msg) {
         var node, doc, category;
-        if (msg) {
+        if (msg !== undefined) {
             category = msgOrCategory;
         } else {
             msg = msgOrCategory;
@@ -367,7 +453,27 @@ function BrowserRuntime(logoutput) {
         } else if (console) {
             console.log(msg);
         }
+        if (category === "alert") {
+            alert(msg);
+        }
     }
+
+    /**
+    * @param {!boolean} condition
+    * @param {!string} message
+    * @param {!function():undefined=} callback
+    * @return {undefined}
+    */
+    function assert(condition, message, callback) {
+        if (!condition) {
+            log("alert", "ASSERTION FAILED:\n" + message);
+            if (callback) {
+                callback();
+            }
+			throw message; // interrupt execution and provide a backtrace
+        }
+    }
+
     function readFile(path, encoding, callback) {
         if (cache.hasOwnProperty(path)) {
             callback(null, cache[path]);
@@ -384,7 +490,7 @@ function BrowserRuntime(logoutput) {
                 } else if (xhr.status === 200 || xhr.status === 0) {
                     // report file
                     if (encoding === "binary") {
-                        if (typeof VBArray !== "undefined") { // IE9
+                        if (String(typeof VBArray) !== "undefined") { // IE9
                             data = new VBArray(xhr.responseBody).toArray();
                         } else {
                             data = self.byteArrayFromString(xhr.responseText,
@@ -431,7 +537,7 @@ function BrowserRuntime(logoutput) {
                     callback("File " + path + " is empty.");
                 } else if (xhr.status === 200 || xhr.status === 0) {
                     // report file
-                    if (typeof VBArray !== "undefined") {
+                    if (String(typeof VBArray) !== "undefined") {
                         data = new VBArray(xhr.responseBody).toArray();
                     } else {
                         data = self.byteArrayFromString(xhr.responseText, "binary");
@@ -519,6 +625,7 @@ function BrowserRuntime(logoutput) {
         }
     }
     function deleteFile(path, callback) {
+        delete cache[path];
         var xhr = new XMLHttpRequest();
         xhr.open('DELETE', path, true);
         xhr.onreadystatechange = function () {
@@ -607,6 +714,7 @@ function BrowserRuntime(logoutput) {
     this.isFile = isFile;
     this.getFileSize = getFileSize;
     this.log = log;
+    this.assert = assert;
     this.setTimeout = function (f, msec) {
         setTimeout(function () {
             f();
@@ -624,12 +732,23 @@ function BrowserRuntime(logoutput) {
     this.getDOMImplementation = function () {
         return window.document.implementation;
     };
+    this.parseXML = function (xml) {
+        var parser = new DOMParser();
+        return parser.parseFromString(xml, "text/xml");
+    };
     this.exit = function (exitCode) {
         log("Calling exit with code " + String(exitCode) +
                 ", but exit() is not implemented.");
     };
     this.getWindow = function () {
         return window;
+    };
+    this.getNetwork = function () {
+        var now = this.getVariable("now");
+        if (now === undefined) {
+            return {networkStatus:"unavailable"};
+        }
+        return now;
     };
 }
 
@@ -641,7 +760,10 @@ function NodeJSRuntime() {
     "use strict";
     var self = this,
         fs = require('fs'),
-        currentDirectory = "";
+        pathmod = require('path'),
+        currentDirectory = "",
+        parser,
+        domImplementation;
 
     /**
      * @constructor
@@ -677,45 +799,59 @@ function NodeJSRuntime() {
         return bytearray.toString(encoding);
     };
 
+    /**
+    * @param {!string} name
+    * @return {*}
+    */
+    this.getVariable = Runtime.getVariable;
+
+    /**
+    * @param {!string} jsonstr
+    * @return {*}
+    */
+    this.fromJson = Runtime.fromJson;
+    /**
+    * @param {*} anything
+    * @return {!string}
+    */
+    this.toJson = Runtime.toJson;
+
     function isFile(path, callback) {
-        if (currentDirectory) {
-            path = currentDirectory + "/" + path;
-        }
+        path = pathmod.resolve(currentDirectory, path);
         fs.stat(path, function (err, stats) {
             callback(!err && stats.isFile());
         });
     }
-    function loadXML(path, callback) {
-        throw "Not implemented.";
-    }
-    this.readFile = function (path, encoding, callback) {
+    function readFile(path, encoding, callback) {
+        path = pathmod.resolve(currentDirectory, path);
         if (encoding !== "binary") {
             fs.readFile(path, encoding, callback);
         } else {
             fs.readFile(path, null, callback);
-/*
-            // we have to encode the returned buffer to a string
-            // it would be nice if we would have a blob or buffer object
-            fs.readFile(path, null, function (err, data) {
-                if (err) {
-                    callback(err);
-                    return;
-                }
-                callback(null, data.toString("binary"));
-            });
-*/
         }
-    };
+    }
+    this.readFile = readFile;
+    function loadXML(path, callback) {
+        readFile(path, "utf-8", function (err, data) {
+            if (err) {
+                return callback(err);
+            }
+            callback(null, self.parseXML(data));
+        });
+    }
+    this.loadXML = loadXML;
     this.writeFile = function (path, data, callback) {
+        path = pathmod.resolve(currentDirectory, path);
         fs.writeFile(path, data, "binary", function (err) {
             callback(err || null);
         });
     };
-    this.deleteFile = fs.unlink;
+    this.deleteFile = function (path, callback) {
+        path = pathmod.resolve(currentDirectory, path);
+        fs.unlink(path, callback);
+    };
     this.read = function (path, offset, length, callback) {
-        if (currentDirectory) {
-            path = currentDirectory + "/" + path;
-        }
+        path = pathmod.resolve(currentDirectory, path);
         fs.open(path, "r+", 666, function (err, fd) {
             if (err) {
                 callback(err);
@@ -730,16 +866,18 @@ function NodeJSRuntime() {
     };
     this.readFileSync = function (path, encoding) {
         if (!encoding) {
+            // FIXME - this feels wrong
             return "";
+        }
+        if (encoding === "binary") {
+            // this will return a Buffer
+            return fs.readFileSync(path, null);
         }
         return fs.readFileSync(path, encoding);
     };
-    this.loadXML = loadXML;
     this.isFile = isFile;
     this.getFileSize = function (path, callback) {
-        if (currentDirectory) {
-            path = currentDirectory + "/" + path;
-        }
+        path = pathmod.resolve(currentDirectory, path);
         fs.stat(path, function (err, stats) {
             if (err) {
                 callback(-1);
@@ -748,9 +886,45 @@ function NodeJSRuntime() {
             }
         });
     };
-    this.log = function (msg) {
+
+    /**
+     * @param {!string} msgOrCategory
+     * @param {string=} msg
+     * @return {undefined}
+     */
+    function log (msgOrCategory, msg) {
+        var category;
+        if (msg !== undefined) {
+            category = msgOrCategory;
+        } else {
+            msg = msgOrCategory;
+        }
+        if (category === "alert") {
+            process.stderr.write("\n!!!!! ALERT !!!!!" + '\n');
+        }
         process.stderr.write(msg + '\n');
-    };
+        if (category === "alert") {
+            process.stderr.write("!!!!! ALERT !!!!!" + '\n');
+        }
+    }
+    this.log = log;
+
+    /**
+    * @param {!boolean} condition
+    * @param {!string} message
+    * @param {!function():undefined=} callback
+    * @return {undefined}
+    */
+    function assert(condition, message, callback) {
+        if (!condition) {
+            process.stderr.write("ASSERTION FAILED: "+message);
+            if (callback) {
+                callback();
+            }
+        }
+    }
+    this.assert = assert;
+
     this.setTimeout = function (f, msec) {
         setTimeout(function () {
             f();
@@ -769,12 +943,24 @@ function NodeJSRuntime() {
         return "NodeJSRuntime";
     };
     this.getDOMImplementation = function () {
-        return null;
+        return domImplementation;
+    };
+    this.parseXML = function (xml) {
+        return parser.parseFromString(xml, "text/xml");
     };
     this.exit = process.exit;
     this.getWindow = function () {
         return null;
     };
+    this.getNetwork = function () {
+        return {networkStatus:"unavailable"};
+    };
+    function init() {
+        var DOMParser = require('xmldom').DOMParser;
+        parser = new DOMParser();
+        domImplementation = self.parseXML("<a/>").implementation;
+    }
+    init();
 }
 
 /**
@@ -827,6 +1013,24 @@ function RhinoRuntime() {
         return a;
     };
     this.byteArrayToString = Runtime.byteArrayToString;
+
+    /**
+    * @param {!string} name
+    * @return {*}
+    */
+    this.getVariable = Runtime.getVariable;
+
+    /**
+    * @param {!string} jsonstr
+    * @return {*}
+    */
+    this.fromJson = Runtime.fromJson;
+    /**
+    * @param {*} anything
+    * @return {!string}
+    */
+    this.toJson = Runtime.toJson;
+
     this.concatByteArrays = function (bytearray1, bytearray2) {
         return bytearray1.concat(bytearray2);
     };
@@ -844,6 +1048,9 @@ function RhinoRuntime() {
         callback(null, document);
     }
     function runtimeReadFile(path, encoding, callback) {
+        if (currentDirectory) {
+            path = currentDirectory + "/" + path;
+        }
         var file = new Packages.java.io.File(path),
             data,
             // read binary, seems hacky but works
@@ -883,6 +1090,9 @@ function RhinoRuntime() {
     this.loadXML = loadXML;
     this.readFile = runtimeReadFile;
     this.writeFile = function (path, data, callback) {
+        if (currentDirectory) {
+            path = currentDirectory + "/" + path;
+        }
         var out = new Packages.java.io.FileOutputStream(path),
             i,
             l = data.length;
@@ -893,6 +1103,9 @@ function RhinoRuntime() {
         callback(null);
     };
     this.deleteFile = function (path, callback) {
+        if (currentDirectory) {
+            path = currentDirectory + "/" + path;
+        }
         var file = new Packages.java.io.File(path);
         if (file['delete']()) {
             callback(null);
@@ -929,7 +1142,44 @@ function RhinoRuntime() {
         var file = new Packages.java.io.File(path);
         callback(file.length());
     };
-    this.log = print;
+
+    /**
+     * @param {!string} msgOrCategory
+     * @param {string=} msg
+     * @return {undefined}
+     */
+    function log (msgOrCategory, msg) {
+        var category;
+        if (msg !== undefined) {
+            category = msgOrCategory;
+        } else {
+            msg = msgOrCategory;
+        }
+        if (category === "alert") {
+            print("\n!!!!! ALERT !!!!!");
+        }
+        print(msg);
+        if (category === "alert") {
+            print("!!!!! ALERT !!!!!");
+        }
+    }
+    this.log = log;
+
+    /**
+    * @param {!boolean} condition
+    * @param {!string} message
+    * @param {!function():undefined=} callback
+    * @return {undefined}
+    */
+    function assert(condition, message, callback) {
+        if (!condition) {
+            log("alert", "ASSERTION FAILED: "+message);
+            if (callback) {
+                callback();
+            }
+        }
+    }
+    this.assert = assert;
     this.setTimeout = function (f, msec) {
         f();
     };
@@ -948,9 +1198,15 @@ function RhinoRuntime() {
     this.getDOMImplementation = function () {
         return builder.getDOMImplementation();
     };
+    this.parseXML = function (xml) {
+        return builder.parse(xml);
+    };
     this.exit = quit;
     this.getWindow = function () {
         return null;
+    };
+    this.getNetwork = function () {
+        return {networkStatus:"unavailable"};
     };
 }
 
@@ -961,9 +1217,9 @@ function RhinoRuntime() {
 var runtime = (function () {
     "use strict";
     var result;
-    if (typeof window !== "undefined") {
+    if (String(typeof window) !== "undefined") {
         result = new BrowserRuntime(window.document.getElementById("logoutput"));
-    } else if (typeof require !== "undefined") {
+    } else if (String(typeof require) !== "undefined") {
         result = new NodeJSRuntime();
     } else {
         result = new RhinoRuntime();
@@ -1074,7 +1330,12 @@ var runtime = (function () {
     };
 }());
 (function (args) {
-    args = Array.prototype.slice.call(args);
+    if (args) {
+        args = Array.prototype.slice.call(/**@type{Object}*/(args));
+    } else {
+        args = [];
+    }
+
     function run(argv) {
         if (!argv.length) {
             return;
@@ -1082,7 +1343,8 @@ var runtime = (function () {
         var script = argv[0];
         runtime.readFile(script, "utf8", function (err, code) {
             var path = "",
-                paths = runtime.libraryPaths();
+                paths = runtime.libraryPaths(),
+                codestring = /**@type{string}*/(code);
             if (script.indexOf("/") !== -1) {
                 path = script.substring(0, script.indexOf("/"));
             }
@@ -1090,13 +1352,13 @@ var runtime = (function () {
             function run() {
                 var script, path, paths, args, argv, result; // hide variables
                 // execute script and make arguments available via argv
-                result = eval(code);
+                result = eval(codestring);
                 if (result) {
                     runtime.exit(result);
                 }
                 return;
             }
-            if (err) {
+            if (err || codestring === null) {
                 runtime.log(err);
                 runtime.exit(1);
             } else {
@@ -1113,5 +1375,4 @@ var runtime = (function () {
     } else {
         run(args.slice(1));
     }
-}(typeof arguments !== "undefined" && arguments));
-
+}(String(typeof arguments) !== "undefined" && arguments));

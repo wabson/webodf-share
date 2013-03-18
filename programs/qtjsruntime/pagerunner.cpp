@@ -13,9 +13,19 @@
 
 QByteArray getRuntimeBindings() {
     return
-    "if (typeof(runtime) !== 'undefined') {"
+    "if (typeof(runtime) !== 'undefined' && typeof(nativeio) !== 'undefined') {"
     "    runtime.readFileSync = function (path, encoding) {"
     "        return nativeio.readFileSync(path, encoding);"
+    "    };"
+    "    runtime.readFile = function (path, encoding, callback) {"
+    "        var data = nativeio.readFileSync(path, encoding),"
+    "            err = nativeio.error()||null;"
+    "        if (err) {"
+    "            data = undefined;"
+    "        } else {"
+    "            data = runtime.byteArrayFromString(data, 'binary');"
+    "        }"
+    "        callback(nativeio.error()||null, data);"
     "    };"
     "    runtime.read = function (path, offset, length, callback) {"
     "        var data = nativeio.read(path, offset, length);"
@@ -57,7 +67,8 @@ PageRunner::PageRunner(const QStringList& args)
     nativeio = new NativeIO(this, QFileInfo(arguments[0]).dir(),
                             QDir::current());
     if (url.scheme() == "file" || url.isRelative()) {
-        QFileInfo info(url.toLocalFile());
+        QFileInfo info(arguments[0]);
+        url = QUrl::fromLocalFile(info.absoluteFilePath());
         if (!info.isReadable() || !info.isFile()) {
             QTextStream err(stderr);
             err << "Cannot read file '" + url.toString() + "'.\n";
@@ -81,27 +92,27 @@ PageRunner::PageRunner(const QStringList& args)
             html += ",'" + arguments[i].toUtf8().replace('\'', "\\'") + "'";
         }
         html = "<html>"
-                "<head><base href=\".\"></base><title></title>"
+                "<head><title></title>"
                 "<script>var arguments=[" + html + "];</script>"
                 "<script src=\"" + arguments[0].toUtf8() + "\"></script>";
-        if (arguments[0].endsWith("runtime.js")) {
-            // add runtime modification
-            html += "<script>" + getRuntimeBindings() +
-                        "    runtime.libraryPaths = function () {"
-                        "        /* convert to javascript array */"
-                        "        var p = nativeio.libraryPaths(),"
-                        "            a = [], i;"
-                        "        for (i in p) { a[i] = p[i]; }"
-                        "        return a;"
-                        "    };</script>";
-        }
+        // add runtime modification
+        html += "<script>//<![CDATA[\n" + getRuntimeBindings() +
+             "if (typeof(runtime) !== 'undefined' && typeof(nativeio) !== 'undefined') {\n"
+             "    runtime.libraryPaths = function () {"
+             "        /* convert to javascript array */"
+             "        var p = nativeio.libraryPaths(),"
+             "            a = [], i;"
+             "        for (i in p) { a[i] = p[i]; }"
+             "        return a;"
+             "    };}//]]></script>";
         html += "</head><body></body></html>\n";
         QTemporaryFile tmp("XXXXXX.html");
         tmp.setAutoRemove(true);
         tmp.open();
         tmp.write(html);
         tmp.close();
-        mainFrame()->load(tmp.fileName());
+        QFileInfo info(tmp.fileName());
+        mainFrame()->load(QUrl::fromLocalFile(info.absoluteFilePath()));
     } else {
         // Make the url absolute. If it is not done here, QWebFrame will do
         // it, and it will lose the query and fragment part.

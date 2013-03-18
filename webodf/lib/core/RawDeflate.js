@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2011 KO GmbH <jos.van.den.oever@kogmbh.com>
+ * Copyright (C) 2012 KO GmbH <jos.van.den.oever@kogmbh.com>
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -28,7 +28,7 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/odfkit/webodf/
+ * @source: http://gitorious.org/webodf/webodf/
  */
 /*global core, runtime*/
 /*jslint bitwise: true, white: false, plusplus: true, vars: true, continue: true*/
@@ -1810,7 +1810,7 @@ core.RawDeflate = function () {
 
         zip_deflate_data = str;
         zip_deflate_pos = 0;
-        if (typeof level === "undefined") {
+        if (String(typeof level) === "undefined") {
             level = zip_DEFAULT_LEVEL;
         }
         zip_deflate_start(level);

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2011 KO GmbH <jos.van.den.oever@kogmbh.com>
+ * Copyright (C) 2012 KO GmbH <jos.van.den.oever@kogmbh.com>
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -28,7 +28,7 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/odfkit/webodf/
+ * @source: http://gitorious.org/webodf/webodf/
  */
 /*global xmldom*/
 /*jslint sub: true*/
@@ -93,7 +93,7 @@ xmldom.LSSerializer = function LSSerializer() {
             /**@type{!number}*/ accept,
             /**@type{!string}*/ prefix;
         if (atts) { // ELEMENT
-            if (nsmap[node.namespaceURI] !== node.prefix) {
+            if (node.namespaceURI && nsmap[node.namespaceURI] !== node.prefix) {
                 nsmap[node.namespaceURI] = node.prefix;
             }
             s += "<" + node.nodeName;
@@ -105,10 +105,10 @@ xmldom.LSSerializer = function LSSerializer() {
                     if (accept === 1) {
                         // xml attributes always need a prefix for a namespace
                         if (attr.namespaceURI) {
-                           prefix = attributePrefix(nsmap, attr.prefix,
+                            prefix = attributePrefix(nsmap, attr.prefix,
                                    attr.namespaceURI);
                         } else {
-                           prefix = "";
+                            prefix = "";
                         }
                         attstr += " " + serializeAttribute(prefix, attr);
                     }

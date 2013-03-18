@@ -1,7 +1,5 @@
-/*global window: true, runtime: true, Runtime: true, core: true, gui: true,
-  xmldom: true, RuntimeTests: true*/
 /**
- * Copyright (C) 2011 KO GmbH <jos.van.den.oever@kogmbh.com>
+ * Copyright (C) 2012 KO GmbH <jos.van.den.oever@kogmbh.com>
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -30,42 +28,62 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/odfkit/webodf/
+ * @source: http://gitorious.org/webodf/webodf/
  */
+/*global window, runtime, Runtime, core, gui, xmldom, RuntimeTests, odf, ops*/
+
+runtime.loadClass("core.Base64Tests");
+runtime.loadClass("core.CursorTests");
+runtime.loadClass("core.PositionIteratorTests");
 runtime.loadClass("core.RuntimeTests");
 runtime.loadClass("core.UnitTester");
-runtime.loadClass("core.PointWalkerTests");
-runtime.loadClass("core.CursorTests");
 runtime.loadClass("core.ZipTests");
-runtime.loadClass("core.Base64Tests");
+runtime.loadClass("gui.SelectionMoverTests");
+runtime.loadClass("gui.XMLEditTests");
+runtime.loadClass("ops.OdtCursorTests");
+runtime.loadClass("ops.SessionImplementationTests");
+runtime.loadClass("odf.OdfContainerTests");
 runtime.loadClass("xmldom.OperationalTransformDOMTests");
 runtime.loadClass("xmldom.XPathTests");
-runtime.loadClass("gui.CaretTests");
-runtime.loadClass("gui.XMLEditTests");
 
+
+/**
+ * Holds the unit tests to run.
+ * @type {!Array.<Function>}
+ */
 var tests = [
-    core.RuntimeTests, // temporarily disabled, enable at next commit!
+    core.RuntimeTests,
     core.ZipTests,
     core.Base64Tests
 ];
-if (runtime.type() !== "NodeJSRuntime") {
-    tests.push(core.PointWalkerTests);
+
+// add tests depending on runtime with XML parser
+if (runtime.getDOMImplementation() && runtime.parseXML("<a/>").createRange) {
+// TODO: fix test and enable
+//     tests.push(core.CursorTests);
+    tests.push(core.PositionIteratorTests);
+    tests.push(gui.SelectionMoverTests);
+    tests.push(odf.OdfContainerTests);
+    tests.push(ops.OdtCursorTests);
 }
+// add tests depending on browser runtime
 if (runtime.type() === "BrowserRuntime") {
-    tests.push(core.PointWalkerTests);
-//    tests.push(core.CursorTests);
     tests.push(xmldom.OperationalTransformDOMTests);
-    tests.push(gui.CaretTests);
     tests.push(xmldom.XPathTests);
+    tests.push(ops.SessionImplementationTests);
 //    tests.push(gui.XMLEditTests);
 }
+
 var tester = new core.UnitTester();
+
 /**
+ * Recursively runs the passed tests.
  * @param {!Array.<Function>} tests
  * @return {undefined}
  */
 function runNextTest(tests) {
     "use strict";
+    // done with all tests?
     if (tests.length === 0) {
         //runtime.log(JSON.stringify(tester.results()));
         runtime.log("Number of failed tests: " +
@@ -73,10 +91,12 @@ function runNextTest(tests) {
         runtime.exit(tester.countFailedTests());
         return;
     }
+
+    // run first of passed tests, on success continue with the left
     var test = tests[0];
     if (typeof test !== "function") {
         runtime.log("Tests contain a non-function object of type " +
-                typeof(test) + ".");
+                typeof test + ".");
         runtime.exit(1);
         return;
     }

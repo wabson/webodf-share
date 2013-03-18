@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2011 KO GmbH <jos.van.den.oever@kogmbh.com>
+ * Copyright (C) 2012 KO GmbH <jos.van.den.oever@kogmbh.com>
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -28,34 +28,57 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/odfkit/webodf/
+ * @source: http://gitorious.org/webodf/webodf/
  */
-/*global runtime: true, Runtime: true, core: true*/
+/*global runtime, Runtime, core*/
 /*jslint evil: true*/
 /**
  * @interface
  */
-core.UnitTest = function UnitTest() {"use strict";};
+core.UnitTest = function UnitTest() {"use strict"; };
 /**
  * @return {undefined}
  */
-core.UnitTest.prototype.setUp = function () {"use strict";};
+core.UnitTest.prototype.setUp = function () {"use strict"; };
 /**
  * @return {undefined}
  */
-core.UnitTest.prototype.tearDown = function () {"use strict";};
+core.UnitTest.prototype.tearDown = function () {"use strict"; };
 /**
  * @return {!string}
  */
-core.UnitTest.prototype.description = function () {"use strict";};
+core.UnitTest.prototype.description = function () {"use strict"; };
 /**
  * @return {Array.<!function():undefined>}
  */
-core.UnitTest.prototype.tests = function () {"use strict";};
+core.UnitTest.prototype.tests = function () {"use strict"; };
 /**
  * @return {Array.<!function(!function():undefined):undefined>}
  */
-core.UnitTest.prototype.asyncTests = function () {"use strict";};
+core.UnitTest.prototype.asyncTests = function () {"use strict"; };
+
+
+core.UnitTest.provideTestAreaDiv = function () {
+    "use strict";
+    var maindoc = runtime.getWindow().document,
+        testarea = maindoc.getElementById('testarea');
+
+    runtime.assert(!testarea, "Unclean test environment, found a div with id \"testarea\".");
+
+    testarea = maindoc.createElement('div');
+    testarea.setAttribute('id', 'testarea');
+    maindoc.body.appendChild(testarea);
+    return testarea;
+};
+
+core.UnitTest.cleanupTestAreaDiv = function () {
+    "use strict";
+    var maindoc = runtime.getWindow().document,
+        testarea = maindoc.getElementById('testarea');
+
+    runtime.assert((!!testarea && (testarea.parentNode === maindoc.body)), "Test environment broken, found no div with id \"testarea\" below body.");
+    maindoc.body.removeChild(testarea);
+};
 
 /**
  * @constructor
@@ -134,7 +157,7 @@ core.UnitTestRunner = function UnitTestRunner() {
                     exception);
         } else if (isResultCorrect(av, bv)) {
             testPassed(a + " is " + b);
-        } else if (typeof av === typeof bv) {
+        } else if (String(typeof av) === String(typeof bv)) {
             testFailed(a + " should be " + bv + ". Was " + stringify(av) + ".");
         } else {
             testFailed(a + " should be " + bv + " (of type " + typeof bv +
@@ -202,7 +225,7 @@ core.UnitTester = function UnitTester() {
             lastFailCount;
 
         // check that this test has not been run or started yet
-        if (testName.hasOwnProperty(results)) {
+        if (results.hasOwnProperty(testName)) {
             runtime.log("Test " + testName + " has already run.");
             return;
         }

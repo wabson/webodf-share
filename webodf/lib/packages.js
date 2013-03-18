@@ -1,5 +1,8 @@
 /**
  * @license
+ *
+ * Copyright (C) 2012 KO GmbH <copyright@kogmbh.com>
+
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -28,7 +31,7 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/odfkit/webodf/
+ * @source: http://gitorious.org/webodf/webodf/
  */
 /**
  * @namespace The core package.
@@ -46,3 +49,7 @@ var xmldom = {};
  * @namespace The ODF package.
  */
 var odf = {};
+/**
+ * @namespace The editing operations
+ */
+var ops = {};

@@ -29,19 +29,20 @@
 		CB533DA914DABDA600C733F6 /* CoreMedia.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CB533DA814DABDA600C733F6 /* CoreMedia.framework */; };
 		CB533DAF14DABDA600C733F6 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = CB533DAD14DABDA600C733F6 /* InfoPlist.strings */; };
 		CB533DB114DABDA600C733F6 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = CB533DB014DABDA600C733F6 /* main.m */; };
-		CB533DB414DABDA600C733F6 /* PhoneGap.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CB533DB314DABDA600C733F6 /* PhoneGap.framework */; };
 		CB533DB914DABDA600C733F6 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = CB533DB714DABDA600C733F6 /* Localizable.strings */; };
 		CB533DC014DABDA600C733F6 /* icon.png in Resources */ = {isa = PBXBuildFile; fileRef = CB533DBF14DABDA600C733F6 /* icon.png */; };
 		CB533DC214DABDA600C733F6 /* icon@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = CB533DC114DABDA600C733F6 /* icon@2x.png */; };
 		CB533DC414DABDA600C733F6 /* icon-72.png in Resources */ = {isa = PBXBuildFile; fileRef = CB533DC314DABDA600C733F6 /* icon-72.png */; };
 		CB533DC714DABDA600C733F6 /* Default.png in Resources */ = {isa = PBXBuildFile; fileRef = CB533DC614DABDA600C733F6 /* Default.png */; };
 		CB533DC914DABDA600C733F6 /* Default@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = CB533DC814DABDA600C733F6 /* Default@2x.png */; };
-		CB533DCD14DABDA600C733F6 /* PhoneGap.plist in Resources */ = {isa = PBXBuildFile; fileRef = CB533DCC14DABDA600C733F6 /* PhoneGap.plist */; };
+		CB533DCD14DABDA600C733F6 /* Cordova.plist in Resources */ = {isa = PBXBuildFile; fileRef = CB533DCC14DABDA600C733F6 /* Cordova.plist */; };
 		CB533DD114DABDA600C733F6 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = CB533DD014DABDA600C733F6 /* AppDelegate.m */; };
 		CB533DD414DABDA600C733F6 /* MainViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = CB533DD314DABDA600C733F6 /* MainViewController.m */; };
 		CB533DD614DABDA600C733F6 /* MainViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = CB533DD514DABDA600C733F6 /* MainViewController.xib */; };
+		CB588C8B1588F70900D9CC12 /* welcome.odt in Resources */ = {isa = PBXBuildFile; fileRef = CB588C8A1588F70900D9CC12 /* welcome.odt */; };
 		CBD2B77314FF8E9700FC3A44 /* NativeZip.m in Sources */ = {isa = PBXBuildFile; fileRef = CBD2B77214FF8E9700FC3A44 /* NativeZip.m */; };
 		CBDCA69D1504EAEB00C706C7 /* WebViewCache.m in Sources */ = {isa = PBXBuildFile; fileRef = CBDCA69C1504EAEB00C706C7 /* WebViewCache.m */; };
+		CBE61BDB1588AC0900970DD8 /* Cordova.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CBE61BDA1588AC0900970DD8 /* Cordova.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -70,23 +71,24 @@
 		CB533DAE14DABDA600C733F6 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		CB533DB014DABDA600C733F6 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		CB533DB214DABDA600C733F6 /* WebODF-Prefix.pch */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "WebODF-Prefix.pch"; sourceTree = "<group>"; };
-		CB533DB314DABDA600C733F6 /* PhoneGap.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = PhoneGap.framework; path = /Users/Shared/PhoneGap/Frameworks/PhoneGap.framework; sourceTree = "<absolute>"; };
 		CB533DB814DABDA600C733F6 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = Resources/en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		CB533DBF14DABDA600C733F6 /* icon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = icon.png; path = Resources/icons/icon.png; sourceTree = "<group>"; };
 		CB533DC114DABDA600C733F6 /* icon@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "icon@2x.png"; path = "Resources/icons/icon@2x.png"; sourceTree = "<group>"; };
 		CB533DC314DABDA600C733F6 /* icon-72.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "icon-72.png"; path = "Resources/icons/icon-72.png"; sourceTree = "<group>"; };
 		CB533DC614DABDA600C733F6 /* Default.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = Default.png; path = Resources/splash/Default.png; sourceTree = "<group>"; };
 		CB533DC814DABDA600C733F6 /* Default@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "Default@2x.png"; path = "Resources/splash/Default@2x.png"; sourceTree = "<group>"; };
-		CB533DCC14DABDA600C733F6 /* PhoneGap.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PhoneGap.plist; sourceTree = "<group>"; };
+		CB533DCC14DABDA600C733F6 /* Cordova.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Cordova.plist; sourceTree = "<group>"; };
 		CB533DCF14DABDA600C733F6 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = AppDelegate.h; path = Classes/AppDelegate.h; sourceTree = "<group>"; };
 		CB533DD014DABDA600C733F6 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = AppDelegate.m; path = Classes/AppDelegate.m; sourceTree = "<group>"; };
 		CB533DD214DABDA600C733F6 /* MainViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = MainViewController.h; path = Classes/MainViewController.h; sourceTree = "<group>"; };
 		CB533DD314DABDA600C733F6 /* MainViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = MainViewController.m; path = Classes/MainViewController.m; sourceTree = "<group>"; };
 		CB533DD514DABDA600C733F6 /* MainViewController.xib */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = MainViewController.xib; path = Classes/MainViewController.xib; sourceTree = "<group>"; };
+		CB588C8A1588F70900D9CC12 /* welcome.odt */ = {isa = PBXFileReference; lastKnownFileType = file; path = welcome.odt; sourceTree = "<group>"; };
 		CBD2B77114FF8E9700FC3A44 /* NativeZip.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = NativeZip.h; path = Classes/NativeZip.h; sourceTree = "<group>"; };
 		CBD2B77214FF8E9700FC3A44 /* NativeZip.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = NativeZip.m; path = Classes/NativeZip.m; sourceTree = "<group>"; };
 		CBDCA69B1504EAEB00C706C7 /* WebViewCache.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = WebViewCache.h; path = Classes/WebViewCache.h; sourceTree = "<group>"; };
 		CBDCA69C1504EAEB00C706C7 /* WebViewCache.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = WebViewCache.m; path = Classes/WebViewCache.m; sourceTree = "<group>"; };
+		CBE61BDA1588AC0900970DD8 /* Cordova.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cordova.framework; path = ../../../../../Shared/Cordova/Frameworks/Cordova.framework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -94,6 +96,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CBE61BDB1588AC0900970DD8 /* Cordova.framework in Frameworks */,
 				CB29ECC314FFBC5500CEAEE3 /* libz.dylib in Frameworks */,
 				CB533D9114DABDA600C733F6 /* Foundation.framework in Frameworks */,
 				CB533D9314DABDA600C733F6 /* UIKit.framework in Frameworks */,
@@ -108,7 +111,6 @@
 				CB533DA514DABDA600C733F6 /* SystemConfiguration.framework in Frameworks */,
 				CB533DA714DABDA600C733F6 /* MobileCoreServices.framework in Frameworks */,
 				CB533DA914DABDA600C733F6 /* CoreMedia.framework in Frameworks */,
-				CB533DB414DABDA600C733F6 /* PhoneGap.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -125,6 +127,8 @@
 		CB533D7E14DABDA500C733F6 = {
 			isa = PBXGroup;
 			children = (
+				CB588C8A1588F70900D9CC12 /* welcome.odt */,
+				CBE61BDA1588AC0900970DD8 /* Cordova.framework */,
 				CB29ECC214FFBC5500CEAEE3 /* libz.dylib */,
 				CB29ECC014FFBC1B00CEAEE3 /* mztools.c */,
 				CB29ECBE14FFBC0500CEAEE3 /* ioapi.c */,
@@ -167,7 +171,6 @@
 		CB533DAA14DABDA600C733F6 /* WebODF */ = {
 			isa = PBXGroup;
 			children = (
-				CB533DB314DABDA600C733F6 /* PhoneGap.framework */,
 				CB533DB514DABDA600C733F6 /* Resources */,
 				CB533DCE14DABDA600C733F6 /* Classes */,
 				CB533DAB14DABDA600C733F6 /* Supporting Files */,
@@ -182,7 +185,7 @@
 				CB533DAD14DABDA600C733F6 /* InfoPlist.strings */,
 				CB533DB014DABDA600C733F6 /* main.m */,
 				CB533DB214DABDA600C733F6 /* WebODF-Prefix.pch */,
-				CB533DCC14DABDA600C733F6 /* PhoneGap.plist */,
+				CB533DCC14DABDA600C733F6 /* Cordova.plist */,
 				CB533DD514DABDA600C733F6 /* MainViewController.xib */,
 			);
 			name = "Supporting Files";
@@ -271,7 +274,7 @@
 		CB533D8014DABDA500C733F6 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0420;
+				LastUpgradeCheck = 0430;
 			};
 			buildConfigurationList = CB533D8314DABDA500C733F6 /* Build configuration list for PBXProject "WebODF" */;
 			compatibilityVersion = "Xcode 3.2";
@@ -296,6 +299,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CB588C8B1588F70900D9CC12 /* welcome.odt in Resources */,
 				CB533DAF14DABDA600C733F6 /* InfoPlist.strings in Resources */,
 				CB533DB914DABDA600C733F6 /* Localizable.strings in Resources */,
 				CB533DC014DABDA600C733F6 /* icon.png in Resources */,
@@ -303,7 +307,7 @@
 				CB533DC414DABDA600C733F6 /* icon-72.png in Resources */,
 				CB533DC714DABDA600C733F6 /* Default.png in Resources */,
 				CB533DC914DABDA600C733F6 /* Default@2x.png in Resources */,
-				CB533DCD14DABDA600C733F6 /* PhoneGap.plist in Resources */,
+				CB533DCD14DABDA600C733F6 /* Cordova.plist in Resources */,
 				CB533DD614DABDA600C733F6 /* MainViewController.xib in Resources */,
 				CB099EC714DAC535000D7B99 /* Default-Portrait~ipad.png in Resources */,
 				CB099EC914DAC53D000D7B99 /* Default-Landscape~ipad.png in Resources */,
@@ -325,7 +329,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "rsync -a ../touchui/app/ www/app/\ncp ../../webodf/webodf.css www/\ncp ../touchui/sencha-touch.* www/\ncp ../touchui/Zoom*.png www/\nif [ ! -e www/webodf.js ]; then\n    # webodf.js should be built\n    if [ ! -e build ]; then mkdir build; fi\n    cd build\n    cmake -G Xcode ../../.. && make && cp webodf/webodf.js ..\n    if [ ! -e webodf.js ]; then\n        echo \"put webodf.js in the ios/www directory\"\n        exit 1;\n    fi\nfi\n";
+			shellScript = "rsync -a ../touchui/app/ www/app/\ncp ../touchui/sencha-touch.* www/\ncp ../touchui/*.png www/\nif [ ! -e www/webodf.js ]; then\n    # webodf.js should be built\n    if [ ! -e build ]; then mkdir build; fi\n    cd build\n    cmake -G Xcode ../../.. && make && cp webodf/webodf.js ..\n    if [ ! -e webodf.js ]; then\n        echo \"put webodf.js in the ios/www directory\"\n        exit 1;\n    fi\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -379,7 +383,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = "$(ARCHS_STANDARD_32_BIT)";
-				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_ARC = NO;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				COPY_PHASE_STRIP = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
@@ -404,7 +408,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = "$(ARCHS_STANDARD_32_BIT)";
-				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_ARC = NO;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				COPY_PHASE_STRIP = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
@@ -424,11 +428,12 @@
 				ALWAYS_SEARCH_USER_PATHS = YES;
 				CODE_SIGN_IDENTITY = "iPhone Developer: Jos van den Oever (GJ9RDPR233)";
 				COPY_PHASE_STRIP = NO;
-				FRAMEWORK_SEARCH_PATHS = /Users/Shared/PhoneGap/Frameworks;
+				FRAMEWORK_SEARCH_PATHS = /Users/Shared/Cordova/Frameworks;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "WebODF/WebODF-Prefix.pch";
 				GCC_PREPROCESSOR_DEFINITIONS = "PHONEGAP_FRAMEWORK=YES";
+				GCC_THUMB_SUPPORT = NO;
 				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
 				INFOPLIST_FILE = "WebODF/WebODF-Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 5.0;
@@ -460,10 +465,11 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer: Jos van den Oever (GJ9RDPR233)";
 				COPY_PHASE_STRIP = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				FRAMEWORK_SEARCH_PATHS = /Users/Shared/PhoneGap/Frameworks;
+				FRAMEWORK_SEARCH_PATHS = /Users/Shared/Cordova/Frameworks;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "WebODF/WebODF-Prefix.pch";
 				GCC_PREPROCESSOR_DEFINITIONS = "PHONEGAP_FRAMEWORK=YES";
+				GCC_THUMB_SUPPORT = NO;
 				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
 				INFOPLIST_FILE = "WebODF/WebODF-Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 5.0;

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2011 KO GmbH <jos.van.den.oever@kogmbh.com>
+ * Copyright (C) 2012 KO GmbH <jos.van.den.oever@kogmbh.com>
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -28,9 +28,9 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/odfkit/webodf/
+ * @source: http://gitorious.org/webodf/webodf/
  */
-/*global core: true, runtime: true*/
+/*global core, runtime*/
 /*jslint bitwise: true*/
 
 /**
@@ -43,21 +43,23 @@ core.RuntimeTests = function RuntimeTests(runner) {
     var t, r = runner;
 
     function testRead(callback) {
-        runtime.read("tests.js", 2, 6, function (err, data) {
+        runtime.read("tests.html", 27, 6, function (err, data) {
             t.err = err;
             r.shouldBeNull(t, "t.err");
-            t.data = runtime.byteArrayToString(data, "utf8");
-            r.shouldBe(t, "t.data", "'global'");
+            if (data) {
+                t.data = runtime.byteArrayToString(data, "utf8");
+            }
+            r.shouldBe(t, "t.data", "'WebODF'");
             callback();
         });
     }
 
     /**
-     * Test writing a binary file and reading it back.
+     * Test writing a binary file, reading it back and deleting it.
      */
     function testWrite(callback) {
-        var content = new core.ByteArrayWriter("utf8"),
-            i, max = 1024, filename, clean;
+        var i, max = 1024, filename, clean,
+            content = new core.ByteArrayWriter("utf8");
         for (i = 0; i < max; i += 1) {
             content.appendArray([i]);
         }
@@ -91,9 +93,27 @@ core.RuntimeTests = function RuntimeTests(runner) {
                 r.shouldBe(t, "t.i", "t.max");
                 // cleanup
                 runtime.deleteFile(filename, function (err) {
-                    callback();
+                    t.err = err;
+                    r.shouldBeNull(t, "t.err");
+                    runtime.readFile(filename, "binary", function (err, data) {
+                        t.err = err;
+                        t.data = data || null;
+                        r.shouldBeNonNull(t, "t.err");
+                        r.shouldBeNull(t, "t.data");
+                        callback();
+                    });
                 });
             });
+        });
+    }
+
+    function testLoadXML(callback) {
+        runtime.loadXML("tests.html", function (err, xml) {
+            t.err = err || null;
+            t.xml = xml || null;
+            r.shouldBeNull(t, "t.err");
+            r.shouldBeNonNull(t, "t.xml");
+            callback();
         });
     }
 
@@ -110,7 +130,8 @@ core.RuntimeTests = function RuntimeTests(runner) {
     this.asyncTests = function () {
         return [
             testRead,
-            testWrite
+            testWrite,
+            testLoadXML
         ];
     };
     this.description = function () {

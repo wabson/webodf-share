@@ -1,5 +1,6 @@
 /**
- * Copyright (C) 2011 KO GmbH <jos.van.den.oever@kogmbh.com>
+ * Copyright (C) 2012 KO GmbH <jos.van.den.oever@kogmbh.com>
+ *
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -28,10 +29,9 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/odfkit/webodf/
+ * @source: http://gitorious.org/webodf/webodf/
  */
-/*global require: true, console: true, process: true, Buffer: true,
-   unescape: true */
+/*global require, console, process, Buffer, unescape*/
 /* A Node.JS http server*/
 var http = require("http"),
     url = require("url"),
@@ -132,6 +132,18 @@ http.createServer(function (request, response) {
                 } else if (filename.substr(-4) === ".odp" ||
                         filename.substr(-5) === ".fodp") {
                     head["Content-Type"] = "application/vnd.oasis.opendocument.spreadsheet";
+                } else if (filename.substr(-4) === ".txt") {
+                    head["Content-Type"] = "text/plain; charset=utf-8";
+                } else if (filename.substr(-5) === ".html") {
+                    head["Content-Type"] = "text/html; charset=utf-8";
+                } else if (filename.substr(-6) === ".xhtml") {
+                    head["Content-Type"] = "application/xhtml+xml; charset=utf-8";
+                } else if (filename.substr(-4) === ".xml") {
+                    head["Content-Type"] = "text/xml; charset=utf-8";
+                } else if (filename.substr(-4) === ".ttf") {
+                    head["Content-Type"] = "application/x-font-ttf";
+                } else if (filename.substr(-4) === ".png") {
+                    head["Content-Type"] = "image/png";
                 }
                 response.writeHead(200, head);
                 if (request.method !== "HEAD") {

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2011 KO GmbH <jos.van.den.oever@kogmbh.com>
+ * Copyright (C) 2012 KO GmbH <jos.van.den.oever@kogmbh.com>
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -28,7 +28,7 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/odfkit/webodf/
+ * @source: http://gitorious.org/webodf/webodf/
  */
 /*global runtime, core, DOMParser*/
 /*jslint bitwise: true*/
@@ -206,7 +206,7 @@ core.Zip = function Zip(url, entriesReadCallback) {
                 size = filesize - offset;
             }
             runtime.read(url, offset, size, function (err, data) {
-                if (err) {
+                if (err || data === null) {
                     callback(err, data);
                 } else {
                     handleEntryData(data, callback);
@@ -325,8 +325,12 @@ core.Zip = function Zip(url, entriesReadCallback) {
         // for some reason cdsOffset is not always equal to offset calculated
         // from the central directory size. The latter is reliable.
         runtime.read(url, cdsOffset, filesize - cdsOffset,
-                function (err, data) {
-                handleCentralDirectory(data, callback);
+            function (err, data) {
+                if (err || data === null) {
+                    callback(err, zip);
+                } else {
+                    handleCentralDirectory(data, callback);
+                }
             });
     }
     /**
@@ -365,11 +369,11 @@ core.Zip = function Zip(url, entriesReadCallback) {
         // the javascript implementation simply reads the file and converts to
         // string
         load(filename, function (err, data) {
-            if (err) {
+            if (err || data === null) {
                 return callback(err, null);
             }
-            data = runtime.byteArrayToString(data, "utf8");
-            callback(null, data);
+            var d = runtime.byteArrayToString(data, "utf8");
+            callback(null, d);
         });
     }
     /**
@@ -379,7 +383,7 @@ core.Zip = function Zip(url, entriesReadCallback) {
      */
     function loadContentXmlAsFragments(filename, handler) {
         // the javascript implementation simply reads the file
-        loadAsString(filename, function (err, data) {
+        zip.loadAsString(filename, function (err, data) {
             if (err) {
                 return handler.rootElementReady(err);
             }
@@ -419,14 +423,14 @@ core.Zip = function Zip(url, entriesReadCallback) {
         });
     }
     function loadAsDOM(filename, callback) {
-        loadAsString(filename, function (err, xmldata) {
-            if (err) {
+        zip.loadAsString(filename, function (err, xmldata) {
+            if (err || xmldata === null) {
                 callback(err, null);
                 return;
             }
-            var parser = new DOMParser();
-            xmldata = parser.parseFromString(xmldata, "text/xml");
-            callback(null, xmldata);
+            var parser = new DOMParser(),
+                dom = parser.parseFromString(xmldata, "text/xml");
+            callback(null, dom);
         });
     }
     /**
@@ -526,16 +530,17 @@ core.Zip = function Zip(url, entriesReadCallback) {
         });
     }
     /**
-     * Write the zipfile to the given path.
-     * @param {!function(?string):undefined} callback receiving possible err
+     * Create a bytearray from the zipfile.
+     * @param {!function(!Runtime.ByteArray):undefined} successCallback receiving zip as bytearray
+     * @param {!function(?string):undefined} errorCallback receiving possible err
      * @return {undefined}
      */
-    function write(callback) {
+    function createByteArray(successCallback, errorCallback) {
         // make sure all data is in memory, for each entry that has data
         // undefined, try to load the entry
         loadAllEntries(0, function (err) {
             if (err) {
-                callback(err);
+                errorCallback(err);
                 return;
             }
             var data = new core.ByteArrayWriter("utf8"),
@@ -559,13 +564,37 @@ core.Zip = function Zip(url, entriesReadCallback) {
             data.appendUInt32LE(codsize);
             data.appendUInt32LE(codoffset);
             data.appendArray([0, 0]);
-            runtime.writeFile(url, data.getByteArray(), callback);
+
+            successCallback(data.getByteArray());
         });
+    }
+    /**
+     * Write the zipfile to the given path.
+     * @param {!string} newurl
+     * @param {!function(?string):undefined} callback receiving possible err
+     * @return {undefined}
+     */
+    function writeAs(newurl, callback) {
+        // make sure all data is in memory, for each entry that has data
+        // undefined, try to load the entry
+        createByteArray(function (data) {
+            runtime.writeFile(newurl, data, callback);
+        }, callback);
+    }
+    /**
+     * Write the zipfile to the given path.
+     * @param {!function(?string):undefined} callback receiving possible err
+     * @return {undefined}
+     */
+    function write(callback) {
+        writeAs(url, callback);
     }
 
     this.load = load;
     this.save = save;
     this.write = write;
+    this.writeAs = writeAs;
+    this.createByteArray = createByteArray;
     // a special function that makes faster odf loading possible
     this.loadContentXmlAsFragments = loadContentXmlAsFragments;
     this.loadAsString = loadAsString;
@@ -589,7 +618,7 @@ core.Zip = function Zip(url, entriesReadCallback) {
         } else {
             runtime.read(url, filesize - 22, 22, function (err, data) {
                 // todo: refactor entire zip class
-                if (err || entriesReadCallback === null) {
+                if (err || entriesReadCallback === null || data === null) {
                     entriesReadCallback(err, zip);
                 } else {
                     handleCentralDirectoryEnd(data, entriesReadCallback);

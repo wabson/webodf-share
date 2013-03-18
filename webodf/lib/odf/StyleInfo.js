@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2011 KO GmbH <jos.van.den.oever@kogmbh.com>
+ * Copyright (C) 2012 KO GmbH <jos.van.den.oever@kogmbh.com>
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -28,9 +28,11 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/odfkit/webodf/
+ * @source: http://gitorious.org/webodf/webodf/
  */
-/*global odf*/
+/*global odf, runtime, xmldom*/
+
+runtime.loadClass("xmldom.XPath");
 /**
  * @constructor
  */
@@ -50,6 +52,7 @@ odf.StyleInfo = function StyleInfo() {
         svgns = "urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0",
         tablens = "urn:oasis:names:tc:opendocument:xmlns:table:1.0",
         textns = "urn:oasis:names:tc:opendocument:xmlns:text:1.0",
+        xmlns = "http://www.w3.org/XML/1998/namespace",
         elementstyles = {
             "text": [
                 { ens: stylens, en: 'tab-stop', ans: stylens, a: 'leader-text-style'},
@@ -299,7 +302,30 @@ odf.StyleInfo = function StyleInfo() {
                 { ens: stylens, en: 'master-page', ans: stylens, a: 'page-layout-name'}
             ]
         },
-        elements;
+        elements,
+        xpath = new xmldom.XPath();
+    
+    /**
+     * Return if a particular element is the parent style for any other style of the same family.
+     * @param {!Element} odfbody
+     * @param {!Function} nsResolver
+     * @param {!Node} styleElement
+     * @return {boolean}
+     */
+    function hasDerivedStyles(odfbody, nsResolver, styleElement) {
+        var nodes,
+            xp,
+            stylens = nsResolver('style'),
+            styleName = styleElement.getAttributeNS(stylens, 'name'),
+            styleFamily = styleElement.getAttributeNS(stylens, 'family');
+
+        xp = "//style:*[@style:parent-style-name='" + styleName + "'][@style:family='" + styleFamily + "']";
+        nodes = xpath.getODFElementsWithXPath(odfbody, xp, nsResolver);
+        if (nodes.length) {
+            return true;
+        }
+        return false;
+    }
 
     /**
      * Return if a particular element can have a style for a particular family.
@@ -419,6 +445,7 @@ odf.StyleInfo = function StyleInfo() {
     };
 
     this.canElementHaveStyle = canElementHaveStyle;
+    this.hasDerivedStyles = hasDerivedStyles;
 
     elements = inverse(elementstyles);
 };

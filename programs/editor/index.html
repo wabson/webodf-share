@@ -1,0 +1,75 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html xml:lang="en" lang="en">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8"></meta>
+  
+  <title>Editor</title>
+
+  <script src="webodf.js" type="text/javascript" charset="utf-8"></script>
+
+  <script type="text/javascript" charset="utf-8">
+    dojoConfig = {
+      paths: {
+        "webodf/editor": "/programs/editor"
+      }
+    }
+  </script>
+
+  <!-- Dojo stuff (use src instead of dist for running from the source tree)-->
+  <script src="dojo-amalgamation.js" data-dojo-config="async: true"></script>
+  <link rel="stylesheet" type="text/css" href="app/resources/app.css"/>
+
+  <!-- App stuff -->
+  <script src="/nowjs/now.js" type="text/javascript" charset="utf-8"></script>
+  <!-- obsolete (replaced by wrapper webodf.js as above):
+  <script src="../../webodf/lib/runtime.js" type="text/javascript" charset="utf-8"/></script>
+  -->
+  <link rel="stylesheet" type="text/css" href="editor.css"/>
+  <script src="UserList.js" type="text/javascript" charset="utf-8"></script>
+  <script src="EditorSession.js" type="text/javascript" charset="utf-8"></script>
+  <script src="widgets.js" type="text/javascript" charset="utf-8"></script>
+  <script src="editor.js" type="text/javascript" charset="utf-8"/></script>
+  <!-- Stuff for selecting a session -->
+  <script src="SessionList.js" type="text/javascript" charset="utf-8"></script>
+  <script src="SessionListView.js" type="text/javascript" charset="utf-8"></script>
+  <script src="getin.js" type="text/javascript" charset="utf-8"/></script>
+ </head>
+
+ <body onload="on_body_load();" class = "claro">
+  <div id = "loginContainer" style="display: none; text-align: center">
+   <form name="loginForm">
+    <p>Login:<br><input name="login" type="text" size="30" maxlength="30"></p>
+    <p>Password:<br><input name="password" type="password" size="30" maxlength="40"></p>
+    <input name="Submit"  type="submit" value="Let me!"/>
+   </form>
+  </div>
+  <div id = "sessionListContainer" style="display: none; text-align: center">
+   <h1>Sessions</h1>
+   <div id = "sessionList"></div>
+  </div>
+  <div id = "mainContainer" style="display: none;">
+    <div id = "editor">
+      <span id = "menubar"></span>
+      <span id = "toolbar"></span>
+      <div id = "container">
+        <div id="canvas"></div>
+      </div>
+    </div>
+    <div id = "collaboration">
+      <div id = "collabContainer">
+        <div id = "people">
+          <div id = "nameInfo">
+            <div id = "nameEdit"></div>
+          </div>
+          <div id = "peopleList"></div>
+          <div id = "inviteButton"></div>
+        </div>
+        <div id = "chat">
+          <div id = "inputArea">
+            <div id = "chatInput"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+ </body>
+</html>

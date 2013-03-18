@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2011 KO GmbH <jos.van.den.oever@kogmbh.com>
+ * Copyright (C) 2012 KO GmbH <jos.van.den.oever@kogmbh.com>
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -28,7 +28,7 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/odfkit/webodf/
+ * @source: http://gitorious.org/webodf/webodf/
  */
 /*jslint sub: true*/
 /*global runtime, odf, core, document, xmldom*/
@@ -38,6 +38,7 @@ runtime.loadClass("odf.Style2CSS");
 /**
  * This class loads embedded fonts into the CSS 
  * @constructor
+ * @return {?}
  **/
 odf.FontLoader = (function () {
     "use strict";
@@ -49,9 +50,7 @@ odf.FontLoader = (function () {
      * @return {!Object.<string,Object>}
      */
     function getEmbeddedFontDeclarations(fontFaceDecls) {
-        var decls = {},
-            fonts,
-            i, font, name, uris, href;
+        var decls = {}, fonts, i, font, name, uris, href, family;
         if (!fontFaceDecls) {
             return decls;
         }
@@ -60,22 +59,25 @@ odf.FontLoader = (function () {
                     style2CSS.namespaceResolver);
         for (i = 0; i < fonts.length; i += 1) {
             font = fonts[i];
-            name = font.getAttributeNS(style2CSS.namespaces["style"], "name");
+            name = font.getAttributeNS(style2CSS.namespaces.style, "name");
+            family = font.getAttributeNS(style2CSS.namespaces.svg, "font-family");
             uris = xpath.getODFElementsWithXPath(font,
                 "svg:font-face-src/svg:font-face-uri",
                 style2CSS.namespaceResolver);
             if (uris.length > 0) {
                 href = uris[0].getAttributeNS(style2CSS.namespaces["xlink"],
                         "href");
-                decls[name] = {href: href};
+                decls[name] = {href: href, family: family};
             }
         }
         return decls;
     }
     function addFontToCSS(name, font, fontdata, stylesheet) {
         // hack: get the first stylesheet
-        stylesheet = document.styleSheets[0];
-        var rule = "@font-face { font-family: \"" + name + "\"; src: " +
+        if (!stylesheet) {
+            stylesheet = document.styleSheets[0];
+        }
+        var rule = "@font-face { font-family: " + font.family + "; src: " +
             "url(data:application/x-font-ttf;charset=binary;base64," +
             base64.convertUTF8ArrayToBase64(fontdata) +
             ") format(\"truetype\"); }";
@@ -116,18 +118,20 @@ odf.FontLoader = (function () {
     }
     /**
      * @constructor
+     * @return {?}
      */
     odf.FontLoader = function FontLoader() {
         var self = this;
         /**
          * @param {!Element} fontFaceDecls
          * @param {!core.Zip} zip
-         * @param {!StyleSheet} stylesheet
+         * @param {?StyleSheet} stylesheet
          * @return {undefined}
          */
         this.loadFonts = function (fontFaceDecls, zip, stylesheet) {
             var embeddedFontDeclarations = getEmbeddedFontDeclarations(
-                    fontFaceDecls);
+                    fontFaceDecls
+                );
             loadFontsIntoCSS(embeddedFontDeclarations, zip, stylesheet);
         };
     };

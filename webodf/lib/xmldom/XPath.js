@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2011 KO GmbH <jos.van.den.oever@kogmbh.com>
+ * Copyright (C) 2012 KO GmbH <jos.van.den.oever@kogmbh.com>
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -28,12 +28,13 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/odfkit/webodf/
+ * @source: http://gitorious.org/webodf/webodf/
  */
 /*global xmldom, XPathResult, runtime*/
 /**
  * Wrapper for XPath functions
  * @constructor
+ * @return {?}
  */
 xmldom.XPath = (function () {
     "use strict";
@@ -148,7 +149,7 @@ xmldom.XPath = (function () {
      * @augments XPathIterator
      * @implements {XPathIterator}
      */
-    function NodeIterator() {
+    function XPathNodeIterator() {
         var node, done = false;
         this.setNode = function setNode(n) {
             node = n;
@@ -276,7 +277,7 @@ xmldom.XPath = (function () {
      * @return {!ConditionIterator}
      */
     function createPredicateFilteredIterator(it, p, namespaceResolver) {
-        var nit = new NodeIterator(),
+        var nit = new XPathNodeIterator(),
             pit = createXPathPathIterator(nit, p, namespaceResolver),
             value = p.value;
         if (value === undefined) {
@@ -331,7 +332,7 @@ xmldom.XPath = (function () {
      * @return {!Array.<Element>}
      */
     function fallback(node, xpath, namespaceResolver) {
-        var it = new NodeIterator(),
+        var it = new XPathNodeIterator(),
             i,
             nodelist,
             parsedXPath,
@@ -358,7 +359,7 @@ xmldom.XPath = (function () {
             nodes,
             elements = [],
             n = null;
-        if (!doc || !doc.evaluate || !n) {
+        if (!doc || !doc.evaluate) {
             elements = fallback(node, xpath, namespaceResolver);
         } else {
             nodes = doc.evaluate(xpath, node, namespaceResolver,
@@ -375,6 +376,7 @@ xmldom.XPath = (function () {
     }
     /**
      * @constructor
+     * @return {?}
      */
     xmldom.XPath = function XPath() {
         this.getODFElementsWithXPath = getODFElementsWithXPath;

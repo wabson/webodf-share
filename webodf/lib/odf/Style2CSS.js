@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2011 KO GmbH <jos.van.den.oever@kogmbh.com>
+ * Copyright (C) 2012 KO GmbH <jos.van.den.oever@kogmbh.com>
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -28,9 +28,9 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/odfkit/webodf/
+ * @source: http://gitorious.org/webodf/webodf/
  */
-/*global odf: true, runtime: true*/
+/*global odf, runtime*/
 /**
  * @constructor
  */
@@ -46,6 +46,7 @@ odf.Style2CSS = function Style2CSS() {
         svgns = "urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0",
         tablens = "urn:oasis:names:tc:opendocument:xmlns:table:1.0",
         textns = "urn:oasis:names:tc:opendocument:xmlns:text:1.0",
+        xmlns = "http://www.w3.org/XML/1998/namespace",
         namespaces = {
             "draw": drawns,
             "fo": fons,
@@ -55,7 +56,8 @@ odf.Style2CSS = function Style2CSS() {
             "svg": svgns,
             "table": tablens,
             "text": textns,
-            "xlink": xlinkns
+            "xlink": xlinkns,
+            "xml": xmlns
         },
 
         familynamespaceprefixes = {
@@ -149,8 +151,29 @@ odf.Style2CSS = function Style2CSS() {
             [ fons, 'border-left', 'border-left' ],
             [ fons, 'border-right', 'border-right' ],
             [ fons, 'border-top', 'border-top' ],
-            [ fons, 'border-bottom', 'border-bottom' ]
-        ];
+            [ fons, 'border-bottom', 'border-bottom' ],
+            [ fons, 'border', 'border' ]
+        ],
+
+        tablecolumnPropertySimpleMapping = [
+            [ stylens, 'column-width', 'width' ]
+        ],
+
+        tablerowPropertySimpleMapping = [
+            [ stylens, 'row-height', 'height' ],
+            [ fons, 'keep-together', null ]
+        ],
+
+        tablePropertySimpleMapping = [
+            [ stylens, 'width', 'width' ],
+            [ fons, 'margin-left', 'margin-left' ],
+            [ fons, 'margin-right', 'margin-right' ],
+            [ fons, 'margin-top', 'margin-top' ],
+            [ fons, 'margin-bottom', 'margin-bottom' ]
+        ],
+
+        // A font-face declaration map, to be populated once style2css is called.
+        fontFaceDeclsMap = {};
 
     // helper functions
     /**
@@ -173,22 +196,30 @@ odf.Style2CSS = function Style2CSS() {
         }
         node = stylesnode.firstChild;
         while (node) {
-            if (node.namespaceURI === stylens && node.localName === 'style') {
+            if (node.namespaceURI === stylens &&
+                    ((node.localName === 'style')  || (node.localName === 'default-style'))) {
                 family = node.getAttributeNS(stylens, 'family');
             } else if (node.namespaceURI === textns &&
                     node.localName === 'list-style') {
                 family = "list";
             }
             name = family && node.getAttributeNS &&
-                    node.getAttributeNS(stylens, 'name');
-            if (name) {
-               if (!stylemap[family]) {
-                   stylemap[family] = {};
-               }
-               stylemap[family][name] = node;
+                node.getAttributeNS(stylens, 'name');
+            
+            if (!stylemap[family]) {
+                stylemap[family] = {};
             }
+
+            if (name) {
+                stylemap[family][name] = node;
+            } else {
+                // For a default style, there is no name
+                stylemap[family][''] = node;
+            }
+
             node = node.nextSibling;
         }
+
         return stylemap;
     }
     /**
@@ -204,7 +235,8 @@ odf.Style2CSS = function Style2CSS() {
             return stylestree[name];
         }
         var derivedStyles = stylestree.derivedStyles,
-            n, style;
+            n,
+            style;
         for (n in stylestree) {
             if (stylestree.hasOwnProperty(n)) {
                 style = findStyle(stylestree[n].derivedStyles, name);
@@ -274,13 +306,25 @@ odf.Style2CSS = function Style2CSS() {
         if (prefix === null) {
             return null;
         }
-        namepart = '[' + prefix + '|style-name="' + name + '"]';
+
+        // If there is no name, it is a default style, in which case style-name shall be used without a value
+        if (name) {
+            namepart = '[' + prefix + '|style-name="' + name + '"]';
+        } else {
+            namepart = '[' + prefix + '|style-name]';
+        }
         if (prefix === 'presentation') {
             prefix = 'draw';
-            namepart = '[presentation|style-name="' + name + '"]';
+            if (name) {
+                namepart = '[presentation|style-name="' + name + '"]';
+            } else {
+                namepart = '[presentation|style-name]';
+            }
         }
-        return prefix + '|' + familytagnames[family].join(
-                namepart + ',' + prefix + '|') + namepart;
+        selector = prefix + '|' + familytagnames[family].join(
+            namepart + ',' + prefix + '|'
+        ) + namepart;
+        return selector;
     }
     /**
      * @param {!string} family
@@ -341,24 +385,64 @@ odf.Style2CSS = function Style2CSS() {
         }
         return rule;
     }
+
+    /**
+     * @param {!Document} doc
+     * @param {!Element} fontFaceDeclsNode
+     * @return {!Object}
+     */
+    function makeFontFaceDeclsMap(doc, fontFaceDeclsNode) {
+        // put all style elements in a hash map by family and name
+        var fontFaceDeclsMap = {}, node, name, family, map;
+        if (!fontFaceDeclsNode) {
+            return fontFaceDeclsNode;
+        }
+        node = fontFaceDeclsNode.firstChild;
+        while (node) {
+            if (node.nodeType === 1) {
+                family = node.getAttributeNS(svgns, 'font-family');
+                name = family && node.getAttributeNS(stylens, 'name');
+                if (name) {
+                    if (!fontFaceDeclsMap[name]) {
+                        fontFaceDeclsMap[name] = {};
+                    }
+                    fontFaceDeclsMap[name] = family;
+                }
+            }
+            node = node.nextSibling;
+        }
+        return fontFaceDeclsMap;
+    }
+
     /**
      * @param {!string} name
      * @return {!string}
      */
     function getFontDeclaration(name) {
-        return '"' + name + '"';
+        return fontFaceDeclsMap[name];
     }
     /**
      * @param {!Element} props
      * @return {!string}
      */
     function getTextProperties(props) {
-        var rule = '', value;
+        var rule = '', value, textDecoration = '';
         rule += applySimpleMapping(props, textPropertySimpleMapping);
+        
         value = props.getAttributeNS(stylens, 'text-underline-style');
         if (value === 'solid') {
-            rule += 'text-decoration: underline;';
+            textDecoration += ' underline';
         }
+        value = props.getAttributeNS(stylens, 'text-line-through-style');
+        if (value === 'solid') {
+            textDecoration += ' line-through';
+        }
+ 
+        if (textDecoration.length) {
+            textDecoration = 'text-decoration:' + textDecoration + ';';
+            rule += textDecoration;
+        }
+
         value = props.getAttributeNS(stylens, 'font-name');
         if (value) {
             value = getFontDeclaration(value);
@@ -406,6 +490,33 @@ odf.Style2CSS = function Style2CSS() {
         return rule;
     }
     /**
+     * @param {!Element} props
+     * @return {!string}
+     */
+    function getTableRowProperties(props) {
+        var rule = '';
+        rule += applySimpleMapping(props, tablerowPropertySimpleMapping);
+        return rule;
+    }
+    /**
+     * @param {!Element} props
+     * @return {!string}
+     */
+    function getTableColumnProperties(props) {
+        var rule = '';
+        rule += applySimpleMapping(props, tablecolumnPropertySimpleMapping);
+        return rule;
+    }
+    /**
+     * @param {!Element} props
+     * @return {!string}
+     */
+    function getTableProperties(props) {
+        var rule = '';
+        rule += applySimpleMapping(props, tablePropertySimpleMapping);
+        return rule;
+    }
+    /**
      * @param {!StyleSheet} sheet
      * @param {!string} family
      * @param {!string} name
@@ -432,6 +543,21 @@ odf.Style2CSS = function Style2CSS() {
         if (properties) {
             rule += getTableCellProperties(properties);
         }
+        properties = getDirectChild(node, stylens, 'table-row-properties');
+        if (properties) {
+            rule += getTableRowProperties(properties);
+        }
+        properties = getDirectChild(node, stylens, 'table-column-properties');
+        if (properties) {
+            rule += getTableColumnProperties(properties);
+        }
+        properties = getDirectChild(node, stylens, 'table-properties');
+        if (properties) {
+            rule += getTableProperties(properties);
+        }
+        if (family === "table") {
+            runtime.log(rule);
+        }
         if (rule.length === 0) {
             return;
         }
@@ -454,7 +580,9 @@ odf.Style2CSS = function Style2CSS() {
             stylemap = {'1': 'decimal', 'a': 'lower-latin', 'A': 'upper-latin',
                 'i': 'lower-roman', 'I': 'upper-roman'},
             content = "";
+
         content = prefix || "";
+
         if (stylemap.hasOwnProperty(style)) {
             content += " counter(list, " + stylemap[style] + ")";
         } else if (style) {
@@ -492,18 +620,58 @@ odf.Style2CSS = function Style2CSS() {
      * @return {undefined}
      */
     function addListStyleRule(sheet, name, node, itemrule) {
-        var selector = 'text|list[text|style-name="' + name +
-                '"]',
+        var selector = 'text|list[text|style-name="' + name + '"]',
             level = node.getAttributeNS(textns, "level"),
+            itemSelector,
+            listItemRule,
+            listLevelProps = node.firstChild, // {Element}
+            listLevelLabelAlign = listLevelProps.firstChild, // {Element}
+            labelAlignAttr,
+            bulletIndent,
+            listIndent,
+            bulletWidth,
             rule = "";
+
+        if (listLevelLabelAlign) {
+            labelAlignAttr = listLevelLabelAlign.attributes;
+            bulletIndent = labelAlignAttr["fo:text-indent"].value;
+            listIndent = labelAlignAttr["fo:margin-left"].value;
+        }
+
+        // If no values are specified, use default values
+        if (!bulletIndent) {
+            bulletIndent = "-0.6cm";
+        }
+
+        // bulletWidth is the negative of bulletIndent
+        // Obtain this my stripping the fist character
+        if (bulletIndent.charAt(0) === '-') {
+            bulletWidth = bulletIndent.substring(1);
+        } else {
+            bulletWidth = "-" + bulletIndent;
+        }
+
         level = level && parseInt(level, 10);
         while (level > 1) {
-            selector += " > text|list-item > text|list";
+            selector += ' > text|list-item > text|list';
             level -= 1;
         }
-        selector += " > list-item:before";
+        itemSelector = selector;
+        itemSelector += ' > text|list-item > *:not(text|list):first-child';
+        if (listIndent !== undefined) {
+            listItemRule = itemSelector + '{margin-left:' + listIndent + ';}';
+            sheet.insertRule(listItemRule, sheet.cssRules.length);
+        }
+        // insert a block before every immediate child of the list-item, except for lists
+        selector += ' > text|list-item > *:not(text|list):first-child:before';
         rule = itemrule;
-        rule = selector + '{' + rule + '}';
+        rule = selector + '{' + rule + ';';
+
+        rule += 'counter-increment:list;';
+        rule += 'margin-left:' + bulletIndent + ';';
+        rule += 'width:' + bulletWidth + ';';
+        rule += 'display:inline-block}';
+
         try {
             sheet.insertRule(rule, sheet.cssRules.length);
         } catch (e) {
@@ -575,13 +743,17 @@ odf.Style2CSS = function Style2CSS() {
     this.namespaceResolver = namespaceResolver;
     this.namespaceResolver.lookupNamespaceURI = this.namespaceResolver;
 
+    // Font face declarations map
+    this.makeFontFaceDeclsMap = makeFontFaceDeclsMap;
+
     /**
      * @param {!StyleSheet} stylesheet
+     * @param {!Element} fontFaceDecls
      * @param {!Element} styles
      * @param {!Element} autostyles
      * @return {undefined}
      */
-    this.style2css = function (stylesheet, styles, autostyles) {
+    this.style2css = function (stylesheet, fontFaceDecls, styles, autostyles) {
         var doc, prefix, styletree, tree, name, rule, family,
             stylenodes, styleautonodes;
         // make stylesheet empty
@@ -610,7 +782,9 @@ odf.Style2CSS = function Style2CSS() {
                 }
             }
         }
-
+        
+        // Populate the font face declarations map
+        fontFaceDeclsMap = makeFontFaceDeclsMap(doc, fontFaceDecls);
         // add the various styles
         stylenodes = getStyleMap(doc, styles);
         styleautonodes = getStyleMap(doc, autostyles);

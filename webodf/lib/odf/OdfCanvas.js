@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2011 KO GmbH <jos.van.den.oever@kogmbh.com>
+ * Copyright (C) 2012 KO GmbH <jos.van.den.oever@kogmbh.com>
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -28,10 +28,10 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/odfkit/webodf/
+ * @source: http://gitorious.org/webodf/webodf/
  */
 /*jslint sub: true*/
-/*global runtime, odf, xmldom */
+/*global runtime, odf, xmldom, webodf_css, alert */
 runtime.loadClass("odf.OdfContainer");
 runtime.loadClass("odf.Formatting");
 runtime.loadClass("xmldom.XPath");
@@ -41,6 +41,7 @@ runtime.loadClass("xmldom.XPath");
  * stylesheets are loaded.
  * @constructor
  * @param {!Element} element Put and ODF Canvas inside this element.
+ * @return {?}
  **/
 odf.OdfCanvas = (function () {
     "use strict";
@@ -103,6 +104,10 @@ odf.OdfCanvas = (function () {
             sheet.insertRule("office|presentation draw|page:nth-child(" +
                 position + ") {display:block;}", 1);
         }
+        this.showFirstPage = function () {
+            position = 1;
+            updateCSS();
+        };
         /**
          * @return {undefined}
          */
@@ -119,6 +124,14 @@ odf.OdfCanvas = (function () {
                 updateCSS();
             }
         };
+
+        this.showPage = function (n) {
+            if (n > 0) {
+                position = n;
+                updateCSS();
+            }
+        };
+
         this.css = css;
     }
     /**
@@ -196,9 +209,9 @@ odf.OdfCanvas = (function () {
                 return true;
             }
             return rangeA.startContainer !== rangeB.startContainer ||
-                   rangeA.startOffset !== rangeB.startOffset ||
-                   rangeA.endContainer !== rangeB.endContainer ||
-                   rangeA.endOffset !== rangeB.endOffset;
+                rangeA.startOffset !== rangeB.startOffset ||
+                rangeA.endContainer !== rangeB.endContainer ||
+                rangeA.endOffset !== rangeB.endOffset;
         }
         /**
          * @return {undefined}
@@ -267,46 +280,15 @@ odf.OdfCanvas = (function () {
         drawns  = namespaces.draw,
         fons    = namespaces.fo,
         officens = namespaces.office,
+        stylens = namespaces.style,
         svgns   = namespaces.svg,
+        tablens = namespaces.table,
         textns  = namespaces.text,
         xlinkns = namespaces.xlink,
+        xmlns = namespaces.xml,
         window = runtime.getWindow(),
-        xpath = new xmldom.XPath(),
-        /**@const@type{!Object.<!string,!Array.<!Function>>}*/
-        eventHandlers = {},
-        editparagraph,
-        loadingQueue = new LoadingQueue();
+        xpath = new xmldom.XPath();
 
-    /**
-     * Register an event handler
-     * @param {!string} eventType
-     * @param {!Function} eventHandler
-     * @return {undefined}
-     */
-    function addEventListener(eventType, eventHandler) {
-        var handlers = eventHandlers[eventType];
-        if (handlers === undefined) {
-            handlers = eventHandlers[eventType] = [];
-        }
-        if (eventHandler && handlers.indexOf(eventHandler) === -1) {
-            handlers.push(eventHandler);
-        }
-    }
-    /**
-     * Fire an event
-     * @param {!string} eventType
-     * @param {Array.<Object>=} args
-     * @return {undefined}
-     */
-    function fireEvent(eventType, args) {
-        if (!eventHandlers.hasOwnProperty(eventType)) {
-            return;
-        }
-        var handlers = eventHandlers[eventType], i;
-        for (i = 0; i < handlers.length; i += 1) {
-            handlers[i](args);
-        }
-    }
     /**
      * @param {!Element} element
      * @return {undefined}
@@ -325,8 +307,12 @@ odf.OdfCanvas = (function () {
     function handleStyles(odfelement, stylesxmlcss) {
         // update the css translation of the styles
         var style2css = new odf.Style2CSS();
-        style2css.style2css(stylesxmlcss.sheet, odfelement.styles,
-                    odfelement.automaticStyles);
+        style2css.style2css(
+            stylesxmlcss.sheet, 
+            odfelement.fontFaceDecls, 
+            odfelement.styles,
+            odfelement.automaticStyles
+        );
     }
     /**
      * @param {!string} id
@@ -444,6 +430,66 @@ odf.OdfCanvas = (function () {
         }
     }
     /**
+     * Modify tables to support merged cells (col/row span)
+     * @param {!Object} container
+     * @param {!Element} odffragment
+     * @param {!StyleSheet} stylesheet
+     * @return {undefined}
+     */
+    function modifyTables(container, odffragment, stylesheet) {
+        var i,
+            tableCells,
+            node;
+
+        function modifyTableCell(container, node, stylesheet) {
+            // If we have a cell which spans columns or rows, 
+            // then add col-span or row-span attributes.
+            if (node.hasAttributeNS(tablens, "number-columns-spanned")) {
+                node.setAttribute("colspan",
+                    node.getAttributeNS(tablens, "number-columns-spanned"));
+            }
+            if (node.hasAttributeNS(tablens, "number-rows-spanned")) {
+                node.setAttribute("rowspan",
+                    node.getAttributeNS(tablens, "number-rows-spanned"));
+            }
+        }
+        tableCells = odffragment.getElementsByTagNameNS(tablens, 'table-cell');
+        for (i = 0; i < tableCells.length; i += 1) {
+            node = /**@type{!Element}*/(tableCells.item(i));
+            modifyTableCell(container, node, stylesheet);
+        }
+    }
+    
+    /**
+     * Modify ODF links to work like HTML links.
+     * @param {!Object} container
+     * @param {!Element} odffragment
+     * @param {!StyleSheet} stylesheet
+     * @return {undefined}
+     */
+    function modifyLinks(container, odffragment, stylesheet) {
+        var i,
+            links,
+            node;
+
+        function modifyLink(container, node, stylesheet) {
+            if (node.hasAttributeNS(xlinkns, "href")) {
+                // Ask the browser to open the link in a new window.
+                node.onclick = function () {
+                    window.open(node.getAttributeNS(xlinkns, "href"));
+                };
+            }
+        }
+        
+        // All links are of name text:a.
+        links = odffragment.getElementsByTagNameNS(textns, 'a');
+        for (i = 0; i < links.length; i += 1) {
+            node = /**@type{!Element}*/(links.item(i));
+            modifyLink(container, node, stylesheet);
+        }
+    }
+
+    /**
      * @param {!Object} container
      * @param {!Element} odfbody
      * @param {!StyleSheet} stylesheet
@@ -483,31 +529,6 @@ odf.OdfCanvas = (function () {
         formatParagraphAnchors(odfbody);
     }
     /**
-     * Load all the images that are inside an odf element.
-     * @param {!Object} container
-     * @param {!Element} odffragment
-     * @param {!StyleSheet} stylesheet
-     * @return {undefined}
-     */
-    function loadImages(container, odffragment, stylesheet) {
-        var i,
-            images,
-            node;
-        // do delayed loading for all the images
-        function loadImage(name, container, node, stylesheet) {
-            // load image with a small delay to give the html ui a chance to
-            // update
-            loadingQueue.addToQueue(function () {
-                setImage(name, container, node, stylesheet);
-            });
-        }
-        images = odffragment.getElementsByTagNameNS(drawns, 'image');
-        for (i = 0; i < images.length; i += 1) {
-            node = /**@type{!Element}*/(images.item(i));
-            loadImage('image' + String(i), container, node, stylesheet);
-        }
-    }
-	/**
      * @param {!string} id
      * @param {!Object} container
      * @param {!Element} plugin
@@ -520,12 +541,13 @@ odf.OdfCanvas = (function () {
         url = plugin.getAttributeNS(xlinkns, 'href');
 
         function callback(url, mimetype) {
+            var ns = doc.documentElement.namespaceURI;
             // test for video mimetypes
             if (mimetype.substr(0, 6) === 'video/') {
-                video = doc.createElementNS(doc.documentElement.namespaceURI, "video");
+                video = doc.createElementNS(ns, "video");
                 video.setAttribute('controls', 'controls');
 
-                source = doc.createElement('source');
+                source = doc.createElementNS(ns, 'source');
                 source.setAttribute('src', url);
                 source.setAttribute('type', mimetype);
 
@@ -558,92 +580,338 @@ odf.OdfCanvas = (function () {
             callback(url, 'video/mp4');
         }
     }
+
     /**
-     * Load all the video that are inside an odf element.
+     * @param {!Element} node
+     * @return {!string}
+     */
+    function getNumberRule(node) {
+        var style = node.getAttributeNS(stylens, "num-format"),
+            suffix = node.getAttributeNS(stylens, "num-suffix"),
+            prefix = node.getAttributeNS(stylens, "num-prefix"),
+            rule = "",
+            stylemap = {'1': 'decimal', 'a': 'lower-latin', 'A': 'upper-latin',
+                 'i': 'lower-roman', 'I': 'upper-roman'},
+            content;
+
+        content = prefix || "";
+
+        if (stylemap.hasOwnProperty(style)) {
+            content += " counter(list, " + stylemap[style] + ")";
+        } else if (style) {
+            content += "'" + style + "';";
+        } else {
+            content += " ''";
+        }
+        if (suffix) {
+            content += " '" + suffix + "'";
+        }
+        rule = "content: " + content + ";";
+        return rule;
+    }
+    /**
+     * @param {!Element} node
+     * @return {!string}
+     */
+    function getImageRule(node) {
+        var rule = "content: none;";
+        return rule;
+    }
+    /**
+     * @param {!Element} node
+     * @return {!string}
+     */
+    function getBulletRule(node) {
+        var rule = "",
+            bulletChar = node.getAttributeNS(textns, "bullet-char");
+        return "content: '" + bulletChar + "';";
+    }
+
+    function getBulletsRule(node) {
+        var itemrule;
+
+        if (node.localName === "list-level-style-number") {
+            itemrule = getNumberRule(node);
+        } else if (node.localName === "list-level-style-image") {
+            itemrule = getImageRule(node);
+        } else if (node.localName === "list-level-style-bullet") {
+            itemrule = getBulletRule(node);
+        }
+
+        return itemrule;
+    }
+    /**
+     * Load all the lists that are inside an odf element, and correct numbering.
      * @param {!Object} container
      * @param {!Element} odffragment
      * @param {!StyleSheet} stylesheet
      * @return {undefined}
      */
-    function loadVideos(container, odffragment, stylesheet) {
+    function loadLists(container, odffragment, stylesheet) {
         var i,
-            plugins,
-            node;
-        // do delayed loading for all the videos
-        function loadVideo(name, container, node, stylesheet) {
-            // load video with a small delay to give the html ui a chance to
-            // update
-            loadingQueue.addToQueue(function () {
-                setVideo(name, container, node, stylesheet);
-            });
+            lists,
+            svgns   = namespaces.svg,
+            node,
+            id,
+            continueList,
+            styleName,
+            rule,
+            listMap = {},
+            parentList,
+            listStyles,
+            listStyle,
+            listStyleMap = {},
+            bulletRule;
+
+        listStyles = window.document.getElementsByTagNameNS(textns, "list-style");
+        for (i = 0; i < listStyles.length; i += 1) {
+            node = /**@type{!Element}*/(listStyles.item(i));
+            styleName = node.getAttributeNS(stylens, "name");
+
+            if (styleName) {
+                listStyleMap[styleName] = node;
+            }
         }
-        // embedded video is stored in a draw:plugin element
-        plugins = odffragment.getElementsByTagNameNS(drawns, 'plugin');
-        runtime.log('Loading Videos:');
-        
-        for (i = 0; i < plugins.length; i += 1) {
-            runtime.log('...Found a video.');
-            node = /**@type{!Element}*/(plugins.item(i));
-            loadVideo('video' + String(i), container, node, stylesheet);
+
+        lists = odffragment.getElementsByTagNameNS(textns, 'list');
+
+        for (i = 0; i < lists.length; i += 1) {
+            node = /**@type{!Element}*/(lists.item(i));
+
+            id = node.getAttributeNS(xmlns, "id");
+
+            if (id) {
+                continueList = node.getAttributeNS(textns, "continue-list");
+                node.setAttribute("id", id);
+                rule = 'text|list#' + id + ' > text|list-item > *:first-child:before {';
+
+                styleName = node.getAttributeNS(textns, 'style-name');
+                if (styleName) {
+                    node = listStyleMap[styleName];
+                    bulletRule = getBulletsRule(node.firstChild);
+                }
+
+                if (continueList) {
+                    parentList = listMap[continueList];
+                    while (parentList) {
+                        continueList = parentList;
+                        parentList = listMap[continueList];
+                    }
+                    rule += 'counter-increment:' + continueList + ';';
+
+                    if (bulletRule) {
+                        bulletRule = bulletRule.replace('list', continueList);
+                        rule += bulletRule;
+                    } else {
+                        rule += 'content:counter(' + continueList + ');';
+                    }
+                } else {
+                    continueList = "";
+                    if (bulletRule) {
+                        bulletRule = bulletRule.replace('list', id);
+                        rule += bulletRule;
+                    } else {
+                        rule += 'content: counter(' + id + ');';
+                    }
+                    rule += 'counter-increment:' + id + ';';
+                    stylesheet.insertRule('text|list#' + id + ' {counter-reset:' + id + '}', stylesheet.cssRules.length);
+                }
+                rule += '}';
+
+                listMap[id] = continueList;
+
+                if (rule) {
+                    // Add this stylesheet
+                    stylesheet.insertRule(rule, stylesheet.cssRules.length);
+                }
+            }
         }
+    }
+
+    function addWebODFStyleSheet(document) {
+        var head = document.getElementsByTagName('head')[0],
+            style,
+            href;
+        if (String(typeof webodf_css) !== "undefined") {
+            style = document.createElementNS(head.namespaceURI, 'style');
+            style.setAttribute('media', 'screen, print, handheld, projection');
+            style.appendChild(document.createTextNode(webodf_css));
+        } else {
+            style = document.createElementNS(head.namespaceURI, 'link');
+            href = "webodf.css";
+            if (runtime.currentDirectory) {
+                href = runtime.currentDirectory() + "/../" + href;
+            }
+            style.setAttribute('href', href);
+            style.setAttribute('rel', 'stylesheet');
+        }
+        style.setAttribute('type', 'text/css');
+        head.appendChild(style);
+        return style;
     }
     /**
      * @param {Document} document Put and ODF Canvas inside this element.
      */
     function addStyleSheet(document) {
-        var styles = document.getElementsByTagName("style"),
-            head = document.getElementsByTagName('head')[0],
+        var head = document.getElementsByTagName('head')[0],
+            style = document.createElementNS(head.namespaceURI, 'style'),
             text = '',
-            prefix,
-            a = "",
-            b;
-        // use cloneNode on an exisiting HTMLStyleElement, because in
-        // Chromium 12, document.createElement('style') does not give a
-        // HTMLStyleElement
-        if (styles && styles.length > 0) {
-            styles = styles[0].cloneNode(false);
-        } else {
-            styles = document.createElement('style');
-        }
+            prefix;
+        style.setAttribute('type', 'text/css');
+        style.setAttribute('media', 'screen, print, handheld, projection');
         for (prefix in namespaces) {
             if (namespaces.hasOwnProperty(prefix) && prefix) {
-                text += "@namespace " + prefix + " url(" + namespaces[prefix] +
-                        ");\n";
+                text += "@namespace " + prefix + " url(" + namespaces[prefix]
+                    + ");\n";
             }
         }
-        styles.appendChild(document.createTextNode(text));
-        head.appendChild(styles);
-        return styles;
+        style.appendChild(document.createTextNode(text));
+        head.appendChild(style);
+        return style;
     }
     /**
      * @constructor
      * @param {!Element} element Put and ODF Canvas inside this element.
+     * @return {?}
      */
     odf.OdfCanvas = function OdfCanvas(element) {
         var self = this,
-            document = element.ownerDocument,
-            /**@type{odf.OdfContainer}*/ odfcontainer,
-            /**@type{!odf.Formatting}*/ formatting = new odf.Formatting(),
+            doc = element.ownerDocument,
+            /**@type{odf.OdfContainer}*/
+            odfcontainer,
+            /**@type{!odf.Formatting}*/
+            formatting = new odf.Formatting(),
             selectionWatcher = new SelectionWatcher(element),
             slidecssindex = 0,
-            pageSwitcher = new PageSwitcher(addStyleSheet(document)),
-            stylesxmlcss = addStyleSheet(document),
-            positioncss = addStyleSheet(document),
+            pageSwitcher,
+            stylesxmlcss,
+            positioncss,
             editable = false,
-            zoomLevel = 1;
+            zoomLevel = 1,
+            /**@const@type{!Object.<!string,!Array.<!Function>>}*/
+            eventHandlers = {},
+            editparagraph,
+            loadingQueue = new LoadingQueue();
 
+        addWebODFStyleSheet(doc);
+        pageSwitcher = new PageSwitcher(addStyleSheet(doc));
+        stylesxmlcss = addStyleSheet(doc);
+        positioncss = addStyleSheet(doc);
+
+        /**
+         * Load all the images that are inside an odf element.
+         * @param {!Object} container
+         * @param {!Element} odffragment
+         * @param {!StyleSheet} stylesheet
+         * @return {undefined}
+         */
+        function loadImages(container, odffragment, stylesheet) {
+            var i,
+                images,
+                node;
+            // do delayed loading for all the images
+            function loadImage(name, container, node, stylesheet) {
+                // load image with a small delay to give the html ui a chance to
+                // update
+                loadingQueue.addToQueue(function () {
+                    setImage(name, container, node, stylesheet);
+                });
+            }
+            images = odffragment.getElementsByTagNameNS(drawns, 'image');
+            for (i = 0; i < images.length; i += 1) {
+                node = /**@type{!Element}*/(images.item(i));
+                loadImage('image' + String(i), container, node, stylesheet);
+            }
+        }
+        /**
+         * Load all the video that are inside an odf element.
+         * @param {!Object} container
+         * @param {!Element} odffragment
+         * @param {!StyleSheet} stylesheet
+         * @return {undefined}
+         */
+        function loadVideos(container, odffragment, stylesheet) {
+            var i,
+                plugins,
+                node;
+            // do delayed loading for all the videos
+            function loadVideo(name, container, node, stylesheet) {
+                // load video with a small delay to give the html ui a chance to
+                // update
+                loadingQueue.addToQueue(function () {
+                    setVideo(name, container, node, stylesheet);
+                });
+            }
+            // embedded video is stored in a draw:plugin element
+            plugins = odffragment.getElementsByTagNameNS(drawns, 'plugin');
+            for (i = 0; i < plugins.length; i += 1) {
+                node = /**@type{!Element}*/(plugins.item(i));
+                loadVideo('video' + String(i), container, node, stylesheet);
+            }
+        }
+
+        /**
+         * Register an event handler
+         * @param {!string} eventType
+         * @param {!Function} eventHandler
+         * @return {undefined}
+         */
+        function addEventListener(eventType, eventHandler) {
+            var handlers = eventHandlers[eventType];
+            if (handlers === undefined) {
+                handlers = eventHandlers[eventType] = [];
+            }
+            if (eventHandler && handlers.indexOf(eventHandler) === -1) {
+                handlers.push(eventHandler);
+            }
+        }
+        /**
+         * Fire an event
+         * @param {!string} eventType
+         * @param {Array.<Object>=} args
+         * @return {undefined}
+         */
+        function fireEvent(eventType, args) {
+            if (!eventHandlers.hasOwnProperty(eventType)) {
+                return;
+            }
+            var handlers = eventHandlers[eventType], i;
+            for (i = 0; i < handlers.length; i += 1) {
+                handlers[i].apply(null, args);
+            }
+        }
         function fixContainerSize() {
             var sizer = element.firstChild,
                 odfdoc = sizer.firstChild;
             if (!odfdoc) {
                 return;
             }
-            element.style.WebkitTransform = 'scale(' + zoomLevel + ')';
-            element.style.WebkitTransformOrigin = 'left top';
-            element.style.width = Math.round(zoomLevel * odfdoc.offsetWidth)
-                + "px";
-            element.style.height = Math.round(zoomLevel * odfdoc.offsetHeight)
-                + "px";
+
+            /*
+                When zoom > 1,
+                - origin needs to be 'center top'
+                When zoom < 1
+                - origin needs to be 'left top'
+            */
+            if (zoomLevel > 1) {
+                sizer.style.MozTransformOrigin = 'center top';
+                sizer.style.WebkitTransformOrigin = 'center top';
+                sizer.style.OTransformOrigin = 'center top';
+                sizer.style.msTransformOrigin = 'center top';
+            } else {
+                sizer.style.MozTransformOrigin = 'left top';
+                sizer.style.WebkitTransformOrigin = 'left top';
+                sizer.style.OTransformOrigin = 'left top';
+                sizer.style.msTransformOrigin = 'left top';
+            }
+            
+            sizer.style.WebkitTransform = 'scale(' + zoomLevel + ')';
+            sizer.style.MozTransform = 'scale(' + zoomLevel + ')';
+            sizer.style.OTransform = 'scale(' + zoomLevel + ')';
+            sizer.style.msTransform = 'scale(' + zoomLevel + ')';
+
+            element.style.width = Math.round(zoomLevel * sizer.offsetWidth) + "px";
+            element.style.height = Math.round(zoomLevel * sizer.offsetHeight) + "px";
         }
         /**
          * A new content.xml has been loaded. Update the live document with it.
@@ -668,51 +936,74 @@ odf.OdfCanvas = (function () {
 
             // only append the content at the end
             clear(element);
-            sizer = document.createElement('div');
+            sizer = doc.createElementNS(element.namespaceURI, 'div');
             sizer.style.display = "inline-block";
             sizer.style.background = "white";
             sizer.appendChild(odfnode);
             element.appendChild(sizer);
+            modifyTables(container, odfnode.body, css);
+            modifyLinks(container, odfnode.body, css);
             loadImages(container, odfnode.body, css);
             loadVideos(container, odfnode.body, css);
+            loadLists(container, odfnode.body, css);
             fixContainerSize();
         }
         /**
-         * @param {!odf.OdfContainer} container
          * @return {undefined}
          **/
-        function refreshOdf(container) {
-            if (odfcontainer !== container) {
-                return;
-            }
+        function refreshOdf() {
 
             // synchronize the object a window.odfcontainer with the view
             function callback() {
                 clear(element);
                 element.style.display = "inline-block";
-                var odfnode = container.rootElement;
+                var odfnode = odfcontainer.rootElement;
                 element.ownerDocument.importNode(odfnode, true);
 
-                formatting.setOdfContainer(container);
+                formatting.setOdfContainer(odfcontainer);
                 handleStyles(odfnode, stylesxmlcss);
                 // do content last, because otherwise the document is constantly
                 // updated whenever the css changes
-                handleContent(container, odfnode);
-                fireEvent("statereadychange");
+                handleContent(odfcontainer, odfnode);
+                fireEvent("statereadychange", [odfcontainer]);
             }
 
             if (odfcontainer.state === odf.OdfContainer.DONE) {
                 callback();
             } else {
-                odfcontainer.onchange = callback;
+                // so the ODF is not done yet. take care that we'll
+                // do the work once it is done:
+
+                // FIXME: use callback registry instead of replacing the onchange
+                runtime.log("WARNING: refreshOdf called but ODF was not DONE.");
+
+                runtime.setTimeout(function later_cb() {
+                    if (odfcontainer.state === odf.OdfContainer.DONE) {
+                        callback();
+                    } else {
+                        runtime.log("will be back later...");
+                        runtime.setTimeout(later_cb, 500);
+                    }
+                }, 100);
             }
         }
-
+        
+        this.refreshCSS = function () {
+            handleStyles(odfcontainer.rootElement, stylesxmlcss);
+        };
         this.odfContainer = function () {
             return odfcontainer;
         };
         this.slidevisibilitycss = function () {
             return pageSwitcher.css;
+        };
+        /**
+         * Set a odfcontainer manually.
+         * @param {!odf.OdfContainer} container
+         */
+        this.setOdfContainer = function (container) {
+            odfcontainer = container;
+            refreshOdf();
         };
         /**
          * @param {!string} url
@@ -721,12 +1012,14 @@ odf.OdfCanvas = (function () {
         this["load"] = this.load = function (url) {
             loadingQueue.clearQueue();
             element.innerHTML = 'loading ' + url;
+            element.removeAttribute('style');
             // open the odf container
             odfcontainer = new odf.OdfContainer(url, function (container) {
+                // assignment might be necessary if the callback
+                // fires before the assignment above happens.
                 odfcontainer = container;
-                refreshOdf(container);
+                refreshOdf();
             });
-            odfcontainer.onstatereadychange = refreshOdf;
         };
 
         function stopEditing() {
@@ -780,7 +1073,9 @@ odf.OdfCanvas = (function () {
                 startContainer = range && range.startContainer,
                 startOffset = range && range.startOffset,
                 endContainer = range && range.endContainer,
-                endOffset = range && range.endOffset;
+                endOffset = range && range.endOffset,
+                doc,
+                ns;
 
             while (e && !((e.localName === "p" || e.localName === "h") &&
                     e.namespaceURI === textns)) {
@@ -793,15 +1088,11 @@ odf.OdfCanvas = (function () {
             if (!e || e.parentNode === editparagraph) {
                 return;
             }
+            doc = e.ownerDocument;
+            ns = doc.documentElement.namespaceURI;
 
             if (!editparagraph) {
-                editparagraph = e.ownerDocument.createElement("p");
-                if (!editparagraph.style) {
-                    editparagraph = e.ownerDocument.createElementNS(
-                        "http://www.w3.org/1999/xhtml",
-                        "p"
-                    );
-                }
+                editparagraph = doc.createElementNS(ns, "p");
                 editparagraph.style.margin = "0px";
                 editparagraph.style.padding = "0px";
                 editparagraph.style.border = "0px";
@@ -830,12 +1121,16 @@ odf.OdfCanvas = (function () {
          * @return {undefined}
          */
         this.addListener = function (eventName, handler) {
-            if (eventName === "selectionchange") {
-                selectionWatcher.addListener(eventName, handler);
-            } else {
-                addEventListener(eventName, handler);
+            switch (eventName) {
+            case "selectionchange":
+                selectionWatcher.addListener(eventName, handler); break;
+            case "click":
+                listenEvent(element, eventName, handler); break;
+            default:
+                addEventListener(eventName, handler); break;
             }
         };
+
         /**
          * @return {!odf.Formatting}
          */
@@ -880,6 +1175,28 @@ odf.OdfCanvas = (function () {
             fixContainerSize();
         };
         /**
+         * @param {!number} width
+         * @param {!number} height
+         * @return {undefined}
+         */
+        this.fitSmart = function (width, height) {
+            var realWidth, realHeight, newScale;
+
+            realWidth = element.offsetWidth / zoomLevel;
+            realHeight = element.offsetHeight / zoomLevel;
+
+            newScale = width / realWidth;
+            if (height !== undefined) {
+                if (height / realHeight < newScale) {
+                    newScale = height / realHeight;
+                }
+            }
+
+            zoomLevel = Math.min(1.0, newScale);
+
+            fixContainerSize();
+        };
+        /**
          * @param {!number} height
          * @return {undefined}
          */
@@ -887,6 +1204,9 @@ odf.OdfCanvas = (function () {
             var realHeight = element.offsetHeight / zoomLevel;
             zoomLevel = height / realHeight;
             fixContainerSize();
+        };
+        this.showFirstPage = function () {
+            pageSwitcher.showFirstPage();
         };
         /**
          * @return {undefined}
@@ -903,10 +1223,23 @@ odf.OdfCanvas = (function () {
         /**
          * @return {undefined}
          */
+        this.showPage = function (n) {
+            pageSwitcher.showPage(n);
+        };
+        /**
+         * @return {undefined}
+         */
         this.showAllPages = function () {
         };
 
-        listenEvent(element, "click", processClick);
+        this.getElement = function () {
+            return element;
+        };
+
+// TODO: where are all these event listeners used? this one gets in the way for SessionController
+// perhaps all the event listening in this class currently could be factored out to another class
+// which then can be created and attached for the current use cases with that event listening?
+//         listenEvent(element, "click", processClick);
     };
     return odf.OdfCanvas;
 }());

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2011 KO GmbH <jos.van.den.oever@kogmbh.com>
+ * Copyright (C) 2012 KO GmbH <jos.van.den.oever@kogmbh.com>
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -28,9 +28,9 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/odfkit/webodf/
+ * @source: http://gitorious.org/webodf/webodf/
  */
-/*global core: true, runtime: true*/
+/*global core, runtime*/
 runtime.loadClass("core.Zip");
 
 /**
@@ -74,7 +74,9 @@ core.ZipTests = function ZipTests(runner) {
             zip.load("hello", function (err, data) {
                 t.err = err;
                 r.shouldBeNull(t, "t.err");
-                t.data = runtime.byteArrayToString(data, "utf8");
+                if (data) {
+                    t.data = runtime.byteArrayToString(data, "utf8");
+                }
                 r.shouldBe(t, "t.data.length", "16");
                 r.shouldBe(t, "t.data", "'bonjour\\nbonjour\\n'");
                 callback();
@@ -94,7 +96,9 @@ core.ZipTests = function ZipTests(runner) {
         var filename = "writetest.zip",
             zip = new core.Zip(filename, null),
             data = runtime.byteArrayFromString(
-                    "application/vnd.oasis.opendocument.text", "utf8");
+                "application/vnd.oasis.opendocument.text",
+                "utf8"
+            );
         zip.save("mimetype", data, false, new Date());
         zip.load("mimetype", function (err, newdata) {
             t.err = err;

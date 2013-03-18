@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2011 KO GmbH <jos.van.den.oever@kogmbh.com>
+ * Copyright (C) 2012 KO GmbH <jos.van.den.oever@kogmbh.com>
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -28,10 +28,10 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/odfkit/webodf/
+ * @source: http://gitorious.org/webodf/webodf/
  */
-/*global runtime: true, core: true, gui: true*/
-runtime.loadClass("core.PointWalker");
+/*global runtime, core, gui*/
+runtime.loadClass("core.PositionIterator");
 runtime.loadClass("core.Cursor");
 //runtime.loadClass("gui.Caret");
 /**
@@ -250,7 +250,9 @@ gui.XMLEdit = function XMLEdit(element, stylesheet) {
      */
     function generateUniquePrefixes(prefixes) {
         var taken = {},
-            ns, p, n = 0;
+            ns,
+            p,
+            n = 0;
         for (ns in prefixes) {
             if (prefixes.hasOwnProperty(ns) && ns) {
                 p = prefixes[ns];
@@ -271,7 +273,11 @@ gui.XMLEdit = function XMLEdit(element, stylesheet) {
         // collect all prefixes and elements
         var prefixes = {},    // namespace prefixes as they occur in the XML
             css = "@namespace customns url(customns);\n",
-            name, pre, ns, names, csssel;
+            name,
+            pre,
+            ns,
+            names,
+            csssel;
         getNamespacePrefixes(node, prefixes);
         generateUniquePrefixes(prefixes);
 /*
@@ -319,7 +325,7 @@ gui.XMLEdit = function XMLEdit(element, stylesheet) {
 
         updateCSS();
 
-        walker = new core.PointWalker(node);
+        walker = new core.PositionIterator(node);
     }
 
     initElement(element);

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2011 KO GmbH <jos.van.den.oever@kogmbh.com>
+ * Copyright (C) 2012 KO GmbH <jos.van.den.oever@kogmbh.com>
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -28,10 +28,10 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/odfkit/webodf/
+ * @source: http://gitorious.org/webodf/webodf/
  */
 /*jslint bitwise: true, regexp: true*/
-/*global core: true, runtime: true*/
+/*global core, runtime*/
 /*
  * $Id: base64.js,v 0.9 2009/03/01 20:51:18 dankogai Exp dankogai $
  */
@@ -70,7 +70,9 @@ core.Base64 = (function () {
             return t;
         }(b64chars)),
         convertUTF16StringToBase64,
-        convertBase64ToUTF16String;
+        convertBase64ToUTF16String,
+        /**@type{Window|null}*/window = runtime.getWindow(),
+        btoa, atob;
 
     /**
      * @param {!string} s
@@ -289,7 +291,10 @@ core.Base64 = (function () {
                  convertUTF16ArrayToUTF8Array(stringToArray(uni)));
     }
 
-    if (runtime.getWindow() && runtime.getWindow().btoa) {
+    if (window && window.btoa) {
+        btoa = function (b) {
+            return window.btoa(b);
+        };
         convertUTF16StringToBase64 = function (uni) {
             return runtime.getWindow().btoa(
                 convertUTF16StringToUTF8String(uni)
@@ -300,7 +305,10 @@ core.Base64 = (function () {
             return convertUTF8ArrayToBase64(convertUTF16StringToUTF8Array(uni));
         };
     }
-    if (runtime.getWindow() && runtime.getWindow().atob) {
+    if (window && window.atob) {
+        atob = function (a) {
+            return window.atob(a);
+        };
         convertBase64ToUTF16String = function (b64) {
             var b = runtime.getWindow().atob(b64);
             return convertUTF8StringToUTF16String_internal(b, 0, b.length);
