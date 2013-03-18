@@ -35,9 +35,9 @@ Due to licensing restrictions WebODF code cannot be distributed with Share Extra
    <target name="dist-jar" depends="clean, prepare" 
       description="Build a JAR file containing configuration and resource files">
       <jar destfile="${dist.dir}/${jar.name}">
-         <zipfileset dir="${build.dir}" includes="webodf/webodf.js" fullpath="WEB-INF/extras/modules/webodf/webodf.js" />
-         <zipfileset dir="${basedir}" includes="webodf/lib/runtime.js" fullpath="WEB-INF/extras/modules/webodf/lib/runtime.js" />
-         <zipfileset dir="${basedir}" includes="webodf/webodf.css" fullpath="WEB-INF/extras/modules/webodf/webodf.css" />
+         <zipfileset dir="${build.dir}" includes="webodf/webodf.js" fullpath="META-INF/extras/modules/webodf/webodf.js" />
+         <zipfileset dir="${basedir}" includes="webodf/lib/runtime.js" fullpath="META-INF/extras/modules/webodf/lib/runtime.js" />
+         <zipfileset dir="${basedir}" includes="webodf/webodf.css" fullpath="META-INF/extras/modules/webodf/webodf.css" />
       </jar>
    </target>
 
