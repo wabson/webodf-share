@@ -8,6 +8,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -28,7 +31,7 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
 /*global core*/
 /*jslint plusplus: true, bitwise: true */
@@ -40,25 +43,26 @@ core.CSSUnits = function CSSUnits() {
     "use strict";
 
     // Unit values relative to 1 inch
-    var sizemap = {
-        "in": 1,
-        "cm": 2.54,
-        "mm": 25.4,
-        "pt": 72,
-        "pc": 12
-    };
-    
+    var self = this,
+        sizemap = {
+            "in": 1,
+            "cm": 2.54,
+            "mm": 25.4,
+            "pt": 72,
+            "pc": 12
+        };
+
     /**
-     * Takes a number of an oldUnit and returns it's value in newUnit
-     * @param {number} value
+     * Takes a number of an oldUnit and returns its value in newUnit
+     * @param {!number} value
      * @param {!string} oldUnit
      * @param {!string} newUnit
-     * @return {number}
+     * @return {!number}
      */
     this.convert = function (value, oldUnit, newUnit) {
-        return (value * sizemap[newUnit] / sizemap[oldUnit]);
+        return value * sizemap[newUnit] / sizemap[oldUnit];
     };
-    
+
     /**
      * Takes a measure such as "2cm" and returns it's measurement in newUnit, e.g. "20mm"
      * @param {!string} measure
@@ -70,12 +74,18 @@ core.CSSUnits = function CSSUnits() {
         if (measure && newUnit) {
             value = parseFloat(measure);
             oldUnit = measure.replace(value.toString(), "");
-        
-            newMeasure = this.convert(value, oldUnit, newUnit);
+
+            newMeasure = self.convert(value, oldUnit, newUnit).toString();
         } else {
             newMeasure = '';
         }
-
-        return newMeasure.toString();
+        return newMeasure;
+    };
+    /**
+     * @param {!string} measure
+     * @return {!string}
+     */
+    this.getUnits = function (measure) {
+        return measure.substr(measure.length - 2, measure.length);
     };
 };

@@ -8,6 +8,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -28,11 +31,33 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
-/*global runtime, core*/
+/*global Node, NodeFilter, runtime, core*/
 /**
  * An iterator that iterators through positions in a DOM tree.
+ * Positions in the DOM tree are places between nodes and between characters.
+ * Undesired positions can be avoided by passing a filter to constructor of the
+ * PositionIterator.
+ * In the following example '|' designates positions that an unfiltered
+ * PositionIterator would visit.
+ *
+ *  <a>|<b>|<c>|a|b|</c>|a|<a>|</a>|</b>|</a>
+ *
+ * Certain positions are considered equivalent in by the PositionIterator.
+ * Position 0 in a Text node is the same as the position preceding the Text node
+ * in the parent node. The last position in a Text node is considered equal to
+ * the subsequent position in the parent node. As such, these two Text node
+ * positions are ommitted from the PositionIterator's traversal throught the
+ * DOM. If the PositionIterator is set to a first or last position in a Text
+ * node, it is instead set the equivalent position in the parent node.
+ * Omitting the first and last Text node positions serves two functions:
+ *  - It ensures that the number of iterated steps is independent of how
+ *    characters are split up over text nodes.
+ *  - The iterator avoids positions that not distinguised by the API for
+ *    range and selections purposes.
+ *
+ *
  * @constructor
  * @param {!Node} root
  * @param {!number=} whatToShow
@@ -42,6 +67,32 @@
 core.PositionIterator = function PositionIterator(root, whatToShow, filter,
         expandEntityReferences) {
     "use strict";
+    /*
+     * Implementation notes.
+     * The position of the positioniterator is defined by two internal
+     * variables: walker and currentPos. The walker is an instance of TreeWalker
+     * which has a member called currentNode of type Node.
+     * Since the implementation uses a Node and an offset, it is comparable to
+     * the parameters that go into Range and Selection related functions.
+     * If the currentNode is a Text node, the variable currentPos gives the
+     * offset in the node.
+     * If the currentNode is an Element node, the variable currentPos can only
+     * have the values 0 or 1. The value 0 means that the iterator is at the
+     * position just before the currentNode. A value of 1 means that the
+     * iterator is at the last position inside the currentNode.
+     */
+    var self = this,
+        /**@type{!TreeWalker}*/
+        walker,
+        /**@type{!number}*/
+        currentPos,
+        /**@type{!function(?Node):!number}*/
+        nodeFilter,
+        TEXT_NODE = Node.TEXT_NODE,
+        ELEMENT_NODE = Node.ELEMENT_NODE,
+        FILTER_ACCEPT = NodeFilter.FILTER_ACCEPT,
+        FILTER_REJECT = NodeFilter.FILTER_REJECT;
+
     /**
      * Empty text nodes are not considered to be a valid position for the
      * positioniterator. They should be filtered out in all cases.
@@ -49,11 +100,16 @@ core.PositionIterator = function PositionIterator(root, whatToShow, filter,
      * @extends NodeFilter
      */
     function EmptyTextNodeFilter() {
+        /**
+         * @param {?Node} node
+         * @return {!number}
+         */
         this.acceptNode = function (node) {
-            if (node.nodeType === 3 && node.length === 0) {
-                return 2;
+            var text = /**@type{!Text}*/(node);
+            if (!node || (node.nodeType === TEXT_NODE && text.length === 0)) {
+                return FILTER_REJECT;
             }
-            return 1;
+            return FILTER_ACCEPT;
         };
     }
     /**
@@ -62,71 +118,89 @@ core.PositionIterator = function PositionIterator(root, whatToShow, filter,
      * @param {!NodeFilter} filter
      */
     function FilteredEmptyTextNodeFilter(filter) {
+        /**
+         * @param {?Node} node
+         * @return {!number}
+         */
         this.acceptNode = function (node) {
-            if (node.nodeType === 3 && node.length === 0) {
-                return 2;
+            var text = /**@type{!Text}*/(node);
+            if (!node || (node.nodeType === TEXT_NODE && text.length === 0)) {
+                return FILTER_REJECT;
             }
             return filter.acceptNode(node);
         };
     }
-    var self = this,
-        walker,
-        currentPos;
+
     /**
      * @return {!boolean}
      */
     this.nextPosition = function () {
-        if (walker.currentNode === root) {
+        var currentNode = walker.currentNode,
+            nodeType = currentNode.nodeType,
+            text = /**@type{!Text}*/(currentNode);
+        if (currentNode === root) {
             return false;
         }
-        if (currentPos === 0 && walker.currentNode.nodeType === 1) {
+        if (currentPos === 0 && nodeType === ELEMENT_NODE) {
             // step inside an element
             if (walker.firstChild() === null) {
                 currentPos = 1;
             }
-        } else if (walker.currentNode.nodeType === 3
-                && currentPos + 1 < walker.currentNode.length) {
+        } else if (nodeType === TEXT_NODE
+                && currentPos + 1 < text.length) {
             // advance inside a text node
             currentPos += 1;
         } else {
             if (walker.nextSibling() !== null) {
                 currentPos = 0;
-            } else {
-                walker.parentNode();
+            } else if (walker.parentNode()) {
                 currentPos = 1;
+            } else {
+                return false;
             }
         }
         return true;
     };
     function setAtEnd() {
-        var type = walker.currentNode.nodeType;
-        if (type === 3) {
-            currentPos = walker.currentNode.length - 1;
+        var text = /**@type{!Text}*/(walker.currentNode),
+            type = text.nodeType;
+        if (type === TEXT_NODE) {
+            currentPos = text.length - 1;
         } else {
-            currentPos = (type === 1) ? 1 : 0;
+            currentPos = (type === ELEMENT_NODE) ? 1 : 0;
         }
     }
     /**
+     * @returns {!boolean}
+     */
+    function previousNode() {
+        if (walker.previousSibling() === null) {
+            if (!walker.parentNode() || walker.currentNode === root) {
+                walker.firstChild();
+                return false;
+            }
+            currentPos = 0;
+        } else {
+            setAtEnd();
+        }
+        return true;
+    }
+    /**
+     * Move the iterator to the previous position.
+     * If the iterator is already at the first position, it is not moved and
+     * false is returned instead of true.
      * @return {!boolean}
      */
     this.previousPosition = function () {
-        var moved = true;
+        var moved = true,
+            currentNode = walker.currentNode;
         if (currentPos === 0) {
-            if (walker.previousSibling() === null) {
-                walker.parentNode();
-                if (walker.currentNode === root) {
-                    walker.firstChild();
-                    return false;
-                }
-                currentPos = 0;
-            } else {
-                setAtEnd();
-            }
-        } else if (walker.currentNode.nodeType === 3) {
+            moved = previousNode();
+        } else if (currentNode.nodeType === TEXT_NODE) {
             currentPos -= 1;
         } else if (walker.lastChild() !== null) {
             setAtEnd();
-        } else if (walker.currentNode === root) {
+        } else if (currentNode === root) {
             moved = false;
         } else {
             currentPos = 0;
@@ -134,76 +208,80 @@ core.PositionIterator = function PositionIterator(root, whatToShow, filter,
         return moved;
     };
     /**
-     * @return {!Node}
+     * This function exposes class internals and should be avoided.
+     */
+    this.previousNode = previousNode;
+    /**
+     * Return the container for the current position.
+     * @return {!Element|!Text}
      */
     this.container = function () {
-        var n = walker.currentNode,
+        var n = /**@type{!Element|!Text}*/(walker.currentNode),
             t = n.nodeType;
-        if (currentPos === 0 && t !== 3) {
-            return /**@type{!Node}*/(n.parentNode);
+        if (currentPos === 0 && t !== TEXT_NODE) {
+            n = /**@type{!Element|!Text}*/(n.parentNode);
         }
         return n;
     };
     /**
-     * @return {!number}
+     * Return the node to the right of the current iterator position.
+     * If the iterator is placed between two characters in a text node,
+     * the text node will be returned.
+     * If there is no right neighbor in the container node, then null is
+     * returned.
+     * Only filtered nodes will be returned.
+     * @return {?Node}
      */
-    this.offset = function () {
-        if (walker.currentNode.nodeType === 3) {
-            return currentPos;
-        }
-        var c = 0,
-            startNode = walker.currentNode,
-            n,
-            nextNode;
-        if (currentPos === 1) {
-            n = walker.lastChild();
-        } else {
-            n = walker.previousSibling();
-        }
-        while (n) {
-            // neighboring texts count as 1 position
-            if (n.nodeType !== 3 || n.nextSibling !== nextNode
-                    || nextNode.nodeType !== 3) {
-                c += 1;
+    this.rightNode = function () {
+        var n = walker.currentNode,
+            text = /**@type{!Text}*/(n),
+            nodeType = n.nodeType;
+        if (nodeType === TEXT_NODE && currentPos === text.length) {
+            n = n.nextSibling;
+            while (n && nodeFilter(n) !== FILTER_ACCEPT) {
+                n = n.nextSibling;
             }
-            nextNode = n;
-            n = walker.previousSibling();
+        } else if (nodeType === ELEMENT_NODE && currentPos === 1) {
+            n = null;
         }
-        walker.currentNode = startNode;
-        return c;
+        return n;
     };
     /**
-     * The same as offset(), except that adjacent text nodes are counted
-     * separately.
-     * @return {!number}
+     * Return the node to the left of the current iterator position.
+     * See rightNode().
+     * @return {?Node}
      */
-    this.domOffset = function () {
-        if (walker.currentNode.nodeType === 3) {
-            return currentPos;
+    this.leftNode = function () {
+        var n = walker.currentNode;
+        if (currentPos === 0) {
+            n = n.previousSibling;
+            while (n && nodeFilter(n) !== FILTER_ACCEPT) {
+                n = n.previousSibling;
+            }
+        } else if (n.nodeType === ELEMENT_NODE) {
+            n = n.lastChild;
+            while (n && nodeFilter(n) !== FILTER_ACCEPT) {
+                n = n.previousSibling;
+            }
         }
-        var c = 0,
-            startNode = walker.currentNode,
-            n;
-        if (currentPos === 1) {
-            n = walker.lastChild();
-        } else {
-            n = walker.previousSibling();
-        }
-        while (n) {
-            c += 1;
-            n = walker.previousSibling();
-        }
-        walker.currentNode = startNode;
-        return c;
+        return n;
     };
     /**
-     * The same as domOffset(), except that all nodes are counted.
+     * This function exposes class internals and should be avoided.
+     * @return {!Element|!Text}
+     */
+    this.getCurrentNode = function () {
+        var n = /**@type{!Element|!Text}*/(walker.currentNode);
+        return n;
+    };
+    /**
+     * Returns the current position within the container of the iterator.
      * This function is useful for communication iterator position with
      * components that do not use a filter.
      * @return {!number}
      */
     this.unfilteredDomOffset = function () {
-        if (walker.currentNode.nodeType === 3) {
+        if (walker.currentNode.nodeType === TEXT_NODE) {
             return currentPos;
         }
         var c = 0,
@@ -220,110 +298,138 @@ core.PositionIterator = function PositionIterator(root, whatToShow, filter,
         return c;
     };
     /**
-     * Return the offset as it would be if all neighboring text nodes were one
-     * text node.
-     * @return {!number}
+     * Return the previous sibling of the current node
+     * @return {Node}
      */
-    this.textOffset = function () {
-        if (walker.currentNode.nodeType !== 3) {
-            return 0;
-        }
-        var offset = currentPos,
-            n = walker.currentNode;
-        // add lengths of preceding textnodes
-        while (walker.previousSibling() && walker.currentNode.nodeType === 3) {
-            offset += walker.currentNode.length;
-        }
-        walker.currentNode = n;
-        return offset;
+    this.getPreviousSibling = function () {
+        var currentNode = walker.currentNode,
+            sibling = walker.previousSibling();
+
+        walker.currentNode = currentNode;
+
+        return sibling;
     };
     /**
-     * The substring of the current text node as if all neighboring text nodes
-     * were one text node.
-     * @param {!number} start
-     * @param {!number} length
-     * @return {!string}
+     * Return the next sibling of the current node
+     * @return {Node}
      */
-    this.substr = function (start, length) {
-        var n = walker.currentNode,
-            t,
-            data = "";
-        if (n.nodeType !== 3) {
-            return data;
-        }
-        while (walker.previousSibling()) {
-            if (walker.currentNode.nodeType !== 3) {
-                walker.nextSibling();
-                break;
-            }
-        }
-        do {
-            data += walker.currentNode.data;
-        } while (walker.nextSibling() && walker.currentNode.nodeType === 3);
-        walker.currentNode = n;
-        return data.substr(start, length);
+    this.getNextSibling = function () {
+        var currentNode = walker.currentNode,
+            sibling = walker.nextSibling();
+
+        walker.currentNode = currentNode;
+
+        return sibling;
     };
     /**
+     * Set the position of the iterator.
+     * The position can be on an unfiltered, i.e. forbidden, position.
+     * If the specified container is forbidden, the iterator will immediately
+     * move to the next visible position
+     *
      * @param {!Node} container
-     * @param {!number} offset
+     * @param {!number} offset offset in unfiltered DOM world
      * @return {!boolean}
      */
-    this.setPosition = function (container, offset) {
-        runtime.assert(container !== null, "PositionIterator.setPosition called with container===null");
+    this.setUnfilteredPosition = function (container, offset) {
+        var filterResult, node, text;
+        runtime.assert((container !== null) && (container !== undefined),
+            "PositionIterator.setUnfilteredPosition called without container");
         walker.currentNode = container;
-        if (container.nodeType === 3) {
+        if (container.nodeType === TEXT_NODE) {
             currentPos = offset;
-            if (offset > container.length) {
-                throw "Error in setPosition: " + offset + " > "
-                    + container.length;
-            } else if (offset < 0) {
-                throw "Error in setPosition: " + offset + " < 0";
-            }
-            if (offset === container.length) {
+            text = /**@type{!Text}*/(container);
+            runtime.assert(offset <= text.length, "Error in setPosition: " +
+                offset + " > " + text.length);
+            runtime.assert(offset >= 0, "Error in setPosition: " +
+                offset + " < 0");
+            if (offset === text.length) {
                 if (walker.nextSibling()) {
                     currentPos = 0;
                 } else if (walker.parentNode()) {
                     currentPos = 1;
                 } else {
-                    throw "Error in setPosition: position not valid.";
+                    runtime.assert(false, "Error in setUnfilteredPosition: position not valid.");
                 }
             }
             return true;
         }
-        var o = offset,
-            n = walker.firstChild(),
-            prevNode;
-        while (offset > 0 && n) {
-            offset -= 1;
-            prevNode = n;
-            n = walker.nextSibling();
-            // neighboring texts count as 1 position
-            while (n && n.nodeType === 3 && prevNode.nodeType === 3
-                    && n.previousSibling === prevNode) {
-                prevNode = n;
-                n = walker.nextSibling();
+
+        filterResult = nodeFilter(container);
+        node = container.parentNode;
+        while (node && node !== root && filterResult === FILTER_ACCEPT) {
+            filterResult = nodeFilter(node);
+            if (filterResult !== FILTER_ACCEPT) {
+                walker.currentNode = node;
             }
+            node = node.parentNode;
         }
-        if (offset !== 0) {
-            throw "Error in setPosition: offset " + o + " is out of range.";
-        }
-        if (n === null) {
-            walker.currentNode = container;
-            currentPos = 1;
+
+        // Need to ensure the container can have children, otherwise the treewalker will happily
+        // iterate over the child nodes of the container if started on one of the children
+        if (offset < container.childNodes.length && filterResult !== NodeFilter.FILTER_REJECT) {
+            walker.currentNode = /**@type{!Node}*/(container.childNodes.item(offset));
+            filterResult = nodeFilter(walker.currentNode);
+            currentPos = 0; // Assume the current position is ok. Will get modified later if necessary
         } else {
-            currentPos = 0;
+            // Either
+            // - the node has no children
+            // - or offset === childNodes.length
+            // - or the container is rejected.
+            // If the container is rejected, this will get modified later regardless, so don't bother checking now
+            currentPos = 1;
         }
+
+        if (filterResult === NodeFilter.FILTER_REJECT) {
+            // Setting currentPos to 1 indicates iteration on the currentNode is complete.
+            // This will cause the subsequent call to self.nextPosition() to jump to the next
+            // available sibling or parent
+            currentPos = 1;
+        }
+        if (filterResult !== FILTER_ACCEPT) {
+            // The current position is not valid! Move along to the next one that is
+            return self.nextPosition();
+        }
+        runtime.assert(nodeFilter(walker.currentNode) === FILTER_ACCEPT,
+            "PositionIterater.setUnfilteredPosition call resulted in an non-visible node being set");
         return true;
     };
     /**
+     * Move the iterator to its last possible position.
+     * This is at the last position in the root node if the iterator.
      * @return {undefined}
      */
     this.moveToEnd = function () {
         walker.currentNode = root;
         currentPos = 1;
     };
+
+    /**
+     * Places the iterator at the last position inside the given node.
+     * @param {!Node} node
+     * @return {undefined}
+     */
+    this.moveToEndOfNode = function (node) {
+        var text;
+        if (node.nodeType === TEXT_NODE) {
+            text = /**@type{!Text}*/(node);
+            self.setUnfilteredPosition(text, text.length);
+        } else {
+            walker.currentNode = node;
+            currentPos = 1;
+        }
+    };
+
+    /**
+     * Return the filter that is used in this iterator.
+     * @return {!function(?Node):!number}
+     */
+    this.getNodeFilter = function () {
+        return nodeFilter;
+    };
+
     function init() {
-        var f, acceptNode;
+        var f;
         // a position can never be near an empty TextNode. A NodeFilter is the
         // easiest way of filtering out these nodes.
         if (filter) {
@@ -333,11 +439,13 @@ core.PositionIterator = function PositionIterator(root, whatToShow, filter,
         }
         // workaround for versions of createTreeWalker that need a function
         // instead of an object with a function such as IE 9 and older webkits
-        acceptNode = f.acceptNode;
-        acceptNode.acceptNode = acceptNode;
+        nodeFilter = /**@type {!function(?Node):!number}*/(f.acceptNode);
+        nodeFilter.acceptNode = nodeFilter;
         whatToShow = whatToShow || 0xFFFFFFFF;
+        runtime.assert(root.nodeType !== Node.TEXT_NODE, "Internet Explorer doesn't allow tree walker roots to be text nodes");
         walker = root.ownerDocument.createTreeWalker(root, whatToShow,
-                acceptNode, expandEntityReferences);
+                nodeFilter, expandEntityReferences);
+
         currentPos = 0;
         if (walker.firstChild() === null) {
             currentPos = 1;

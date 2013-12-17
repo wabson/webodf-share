@@ -8,6 +8,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -28,10 +31,11 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
-/*global core, gui, ops, runtime*/
+/*global core, gui, ops, runtime, Node*/
 
+runtime.loadClass("core.DomUtils");
 runtime.loadClass("gui.Avatar");
 runtime.loadClass("ops.OdtCursor");
 
@@ -40,234 +44,269 @@ runtime.loadClass("ops.OdtCursor");
  * The caret is implemented by the left border of a span positioned absolutely
  * to the cursor element, with a width of 0 px and a height of 1em (CSS rules).
  * Blinking is done by switching the color of the border from transparent to
- * the user color and back.
+ * the member color and back.
  * @constructor
  * @param {!ops.OdtCursor} cursor
+ * @param {boolean} avatarInitiallyVisible Sets the initial visibility of the caret's avatar
+ * @param {boolean} blinkOnRangeSelect Specify that the caret should blink if a non-collapsed range is selected
  */
-gui.Caret = function Caret(cursor) {
+gui.Caret = function Caret(cursor, avatarInitiallyVisible, blinkOnRangeSelect) {
     "use strict";
-    function clearNode(node) {
-        while (node.firstChild !== null) {
-            node.removeNode(node.firstChild);
-        }
-    }
-    var self = this,
+    var /**@const*/
+        MIN_CARET_HEIGHT_PX = 8, /** 8px = 6pt font size */
+        /**@const*/
+        DEFAULT_CARET_TOP = "5%",
+        /**@const*/
+        DEFAULT_CARET_HEIGHT = "1em",
+        /**@type{!HTMLSpanElement}*/
         span,
+        /**@type{!gui.Avatar}*/
         avatar,
+        /**@type{!Element}*/
         cursorNode,
-        focussed = false,
+        /**@type{boolean}*/
+        isShown = true,
+        shouldBlink = false,
+        /**@type{boolean}*/
         blinking = false,
-        color = "";
+        blinkTimeout,
+        domUtils = new core.DomUtils();
 
-    function blink() {
-        if (!focussed || !cursorNode.parentNode) {
+    /**
+     * @param {boolean} reset
+     * @return {undefined}
+     */
+    function blink(reset) {
+        if (!shouldBlink || !cursorNode.parentNode) {
             // stop blinking when removed from the document
             return;
         }
 
-        if (!blinking) {
+        if (!blinking || reset) {
+            if (reset && blinkTimeout !== undefined) {
+                runtime.clearTimeout(blinkTimeout);
+            }
+
             blinking = true;
             // switch between transparent and color
-            span.style.borderColor =
-                (span.style.borderColor === "transparent")
-                    ? color
-                    : "transparent";
+            span.style.opacity =
+                (reset || span.style.opacity === "0")
+                    ? "1"
+                    : "0";
 
-            runtime.setTimeout(function () {
+            blinkTimeout = runtime.setTimeout(function () {
                 blinking = false;
-                blink();
+                blink(false);
             }, 500);
         }
     }
 
     /**
-     * Turns the passed size into a number of pixels.
-     * If size is a string, it must be either empty or be a number plus the suffix "px".
-     * @param {!(string|number)} size
-     * @return {!number}
-     */
-    function pixelCount(size) {
-        var match;
-
-        if ((typeof size === "string")) {
-            if (size === "") {
-                return 0;
-            }
-            match = /^(\d+)(\.\d+)?px$/.exec(size);
-            runtime.assert((match !== null),
-                           "size [" + size + "] does not have unit px.");
-            return parseFloat(match[1]);
-        }
-        return size;
-    }
-
-    /**
-     * Returns the first element in the parent element chain which has the
-     * style attribute "display" set to "block".
-     * @param {!Element} element
-     * @return {?Element}
-     */
-    function getOffsetBaseElement(element) {
-        var anchorElement = element,
-            nodeStyle,
-            /**@type{Window|null}*/window = runtime.getWindow();
-
-        runtime.assert(window !== null,
-                       "Expected to be run in an environment which has a global window, like a browser.");
-
-        do {
-            anchorElement = anchorElement.parentElement;
-            if (! anchorElement) {
-                break;
-            }
-            nodeStyle = window.getComputedStyle(anchorElement, null);
-        } while (nodeStyle.display !== "block");
-
-        return anchorElement;
-    }
-
-    /**
-     * Calculates offset to container element from sum of all margins, paddings
-     * and border widths of the elements in the chain from element to the
-     * container element
-     * @param {?Element} element
-     * @param {?Element} containerElement
-     * @return {!{x:!number,y:!number}}
-     */
-    function getRelativeOffsetTopLeftBySpacing(element, containerElement) {
-        var x = 0,
-            y = 0,
-            elementStyle,
-            /**@type{Window|null}*/window = runtime.getWindow();
-
-        runtime.assert(window !== null,
-                       "Expected to be run in an environment which has a global window, like a browser.");
-
-        while (element && (element !== containerElement)) {
-            elementStyle = window.getComputedStyle(element, null);
-            // add offsets between elements
-            x += pixelCount(elementStyle.marginLeft) +
-                 pixelCount(elementStyle.borderLeftWidth) +
-                 pixelCount(elementStyle.paddingLeft);
-            y += pixelCount(elementStyle.marginTop) +
-                 pixelCount(elementStyle.borderTopWidth) +
-                 pixelCount(elementStyle.paddingTop);
-            // prepare next parent round
-            element = element.parentElement;
-        }
-
-        return {x: x, y: y};
-    }
-
-    /**
-     * Calculates the relative x,y offset of the given element to the given container element
-     * without any scrolling
-     * @param {?Element} element
-     * @param {?Element} containerElement
-     * @return {!{x:!number,y:!number}}
-     */
-    function getRelativeOffsetTopLeft(element, containerElement) {
-        var reachedContainerElement,
-            offsetParent,
-            e,
-            x = 0,
-            y = 0,
-            resultBySpacing;
-
-        // sanity check
-        if (!element || !containerElement) {
-            return {x: 0, y: 0};
-        }
-
-        // go through all offsetParents
-        reachedContainerElement = false;
-        do {
-            // TODO: offsetParent seems to fail in Firefox for non-HTML elements
-            // needs more investigations and then a work-around
-            offsetParent = element.offsetParent;
-            // now check if containerElement is in-between chain from current element to offset parent ,
-            // by looping through the chain until the node before the offset parent
-            e = element.parentNode;
-            while (e !== offsetParent) {
-                // is in-between?
-                if (e === containerElement) {
-                    // add the offset between the last offset parent by all spacings
-                    resultBySpacing = getRelativeOffsetTopLeftBySpacing(element, containerElement);
-                    x += resultBySpacing.x;
-                    y += resultBySpacing.y;
-                    reachedContainerElement = true;
-                    break;
-                }
-                e = e.parentNode;
-            }
-
-            if (reachedContainerElement) {
-                break;
-            }
-
-            // add offset between this element and the offset parent element
-            x += pixelCount(element.offsetLeft);
-            y += pixelCount(element.offsetTop);
-
-            // prepare next offsetParent round
-            element = offsetParent;
-        } while (element && (element !== containerElement));
-
-        return {x: x, y: y};
-    }
-
-    /**
-     * Calculates the position rect of the given element in the given container element
-     * without any scrolling
+     * Calculates the bounding client rect of the caret element,
+     * expanded with a specific margin
      * @param {!Element} caretElement
-     * @param {?Element} containerElement
+     * @param {!{left:!number,top:!number,right:!number,bottom:!number}} margin
      * @return {!{left:!number,top:!number,right:!number,bottom:!number}}
      */
-    function getRelativeCaretOffsetRect(caretElement, containerElement, margin) {
-        var caretOffsetTopLeft,
-            offsetBaseNode;
-        // the caretElement left-top offset is relative to the closest parent
-        // element with display:block.
-        // (that is text:p/text:h, but e.g. not text:span which has display:inline)
-        offsetBaseNode = getOffsetBaseElement(caretElement);
-        caretOffsetTopLeft = getRelativeOffsetTopLeft(offsetBaseNode, containerElement);
-        // add to this the offset of the caret element to the offsetBaseNode
-        caretOffsetTopLeft.x += caretElement.offsetLeft;
-        caretOffsetTopLeft.y += caretElement.offsetTop;
+    function getCaretClientRectWithMargin(caretElement, margin) {
+        var caretRect = caretElement.getBoundingClientRect();
 
         return {
-            left:   caretOffsetTopLeft.x - margin,
-            top:    caretOffsetTopLeft.y - margin,
-            right:  caretOffsetTopLeft.x + caretElement.scrollWidth - 1 + margin,
-            bottom: caretOffsetTopLeft.y + caretElement.scrollHeight - 1 + margin
+            left:   caretRect.left - margin.left,
+            top:    caretRect.top - margin.top,
+            right:  caretRect.right + margin.right,
+            bottom: caretRect.bottom + margin.bottom
         };
     }
 
+    /**
+     * Return the maximum available offset for the supplied node.
+     * @param {!Node} node
+     * @returns {!number}
+     */
+    function length(node) {
+        return node.nodeType === Node.TEXT_NODE ? node.textContent.length : node.childNodes.length;
+    }
+
+    /**
+     * Calculate the number of pixels of vertical overlap. If there is no overlap,
+     * this number will be negative
+     * @param {!Element} cursorNode
+     * @param {!ClientRect} rangeRect
+     * @returns {!number}
+     */
+    function verticalOverlap(cursorNode, rangeRect) {
+        var cursorRect = cursorNode.getBoundingClientRect(),
+            intersectTop = 0,
+            intersectBottom = 0;
+
+        if (cursorRect && rangeRect) {
+            intersectTop = Math.max(cursorRect.top, rangeRect.top);
+            intersectBottom = Math.min(cursorRect.bottom, rangeRect.bottom);
+
+        }
+        return intersectBottom - intersectTop;
+    }
+
+    /**
+     * Get the client rectangle for the nearest selection point to the caret.
+     * This works on the assumption that the next or previous sibling is likely to
+     * be a text node that will provide an accurate rectangle for the caret's desired
+     * height and vertical position.
+     * @returns {?ClientRect}
+     */
+    function getSelectionRect() {
+        var range = cursor.getSelectedRange().cloneRange(),
+            node = cursor.getNode(),
+            nextRectangle,
+            selectionRectangle = null,
+            nodeLength;
+
+        // TODO this might be able to use OdfUtils.scanLeft & scanRight behaviours to find the next odf element
+        // By default, assume the selection height should reflect the height of the previousSibling's last client rect
+        // This means if the cursor is next to a text node, the client rect will be the dimensions of the text block
+        if (node.previousSibling) {
+            nodeLength = length(node.previousSibling);
+            range.setStart(node.previousSibling, nodeLength > 0 ? nodeLength - 1 : 0);
+            range.setEnd(node.previousSibling, nodeLength);
+            nextRectangle = range.getBoundingClientRect();
+            if (nextRectangle && nextRectangle.height) {
+                selectionRectangle = nextRectangle;
+            }
+        }
+        // Under some circumstances (either no previous sibling, or whitespace wrapping) the client rect of the next
+        // sibling will actually be a more accurate visual representation.
+        if (node.nextSibling) {
+            range.setStart(node.nextSibling, 0);
+            range.setEnd(node.nextSibling, length(node.nextSibling) > 0 ? 1 : 0);
+            nextRectangle = range.getBoundingClientRect();
+            if (nextRectangle && nextRectangle.height) {
+                // The nextSibling's rectangle should take precedence if
+                // 1. There is no previousSibling
+                // or 2. The nextSibling's rectangle has more vertical overlap with the cursor node's bounding rectangle
+                // Check #2 is specifically required to handling whitespace wrapping logic. Without this check,
+                // when a whitespace block is wrapped, the cursor tends to jump to the vertical alignment of the previous
+                // line, rather than the line the cursor element is now actually on.
+                if (!selectionRectangle || verticalOverlap(node, nextRectangle) > verticalOverlap(node, selectionRectangle)) {
+                    selectionRectangle = nextRectangle;
+                }
+            }
+        }
+
+        return selectionRectangle;
+    }
+
+    /**
+     * Tweak the height and top offset of the caret to display closely inline in
+     * the text block.
+     * This uses ranges to account for line-height and text offsets.
+     *
+     * This adjustment is necessary as various combinations of fonts and line
+     * sizes otherwise cause the caret to appear above or below the natural line
+     * of the text.
+     * Fonts known to cause this problem:
+     * - STIXGeneral (MacOS, Chrome & Safari)
+     */
+    function handleUpdate() {
+        var selectionRect = getSelectionRect(),
+            zoomLevel = cursor.getOdtDocument().getOdfCanvas().getZoomLevel(),
+            caretRect;
+
+        if (isShown && cursor.getSelectionType() === ops.OdtCursor.RangeSelection) {
+            span.style.visibility = "visible";
+        } else {
+            span.style.visibility = "hidden";
+        }
+
+        if (selectionRect) {
+            // Reset the top back to 0 so that the new client rect calculations are simple
+            // If this isn't done, the existing span's top setting would need to be taken into
+            // account (and converted if not in pixels) when calculating the new top value
+            span.style.top = "0";
+            caretRect = domUtils.getBoundingClientRect(span);
+
+            if (selectionRect.height < MIN_CARET_HEIGHT_PX) {
+                // ClientRect's are read-only, so a whole new object is necessary to modify these values
+                selectionRect = {
+                    top: selectionRect.top - ((MIN_CARET_HEIGHT_PX - selectionRect.height) / 2),
+                    height: MIN_CARET_HEIGHT_PX
+                };
+            }
+            span.style.height = domUtils.adaptRangeDifferenceToZoomLevel(selectionRect.height, zoomLevel) + 'px';
+            span.style.top = domUtils.adaptRangeDifferenceToZoomLevel(selectionRect.top - caretRect.top, zoomLevel) + 'px';
+        } else {
+            // fallback to a relatively safe set of values
+            // This can happen if the caret is not currently visible, or is in the middle
+            // of a collection of nodes that have no client rects. In this case, the caret
+            // will fall back to the existing behaviour
+            span.style.height = DEFAULT_CARET_HEIGHT;
+            span.style.top = DEFAULT_CARET_TOP;
+        }
+    }
+    this.handleUpdate = handleUpdate;
+    
+    /**
+     * @return {undefined}
+     */
+    this.refreshCursorBlinking = function () {
+        if (blinkOnRangeSelect || cursor.getSelectedRange().collapsed) {
+            shouldBlink = true;
+            blink(true);
+        } else {
+            shouldBlink = false;
+            span.style.opacity = "0";
+        }
+    };
+    /**
+     * @return {undefined}
+     */
     this.setFocus = function () {
-        focussed = true;
+        shouldBlink = true;
         avatar.markAsFocussed(true);
-        blink();
+        blink(true);
     };
+    /**
+     * @return {undefined}
+     */
     this.removeFocus = function () {
-        focussed = false;
+        shouldBlink = false;
         avatar.markAsFocussed(false);
-        // reset
-        span.style.borderColor = color;
+        span.style.opacity = "1";
     };
+    /**
+     * @return {undefined}
+     */
+    this.show = function () {
+        isShown = true;
+        handleUpdate();
+        avatar.markAsFocussed(true);
+    };
+    /**
+     * @return {undefined}
+     */
+    this.hide = function () {
+        isShown = false;
+        handleUpdate();
+        avatar.markAsFocussed(false);
+    };
+    /**
+     * @param {string} url
+     * @return {undefined}
+     */
     this.setAvatarImageUrl = function (url) {
         avatar.setImageUrl(url);
     };
+    /**
+     * @param {string} newColor
+     * @return {undefined}
+     */
     this.setColor = function (newColor) {
-        if (color === newColor) {
-            return;
-        }
-
-        color = newColor;
-        if (span.style.borderColor !== "transparent") {
-            span.style.borderColor = color;
-        }
-        avatar.setColor(color);
+        span.style.borderColor = newColor;
+        avatar.setColor(newColor);
     };
+    /**
+     * @return {!ops.OdtCursor}}
+     */
     this.getCursor = function () {
         return cursor;
     };
@@ -277,6 +316,9 @@ gui.Caret = function Caret(cursor) {
     this.getFocusElement = function () {
         return span;
     };
+    /**
+     * @return {undefined}
+     */
     this.toggleHandleVisibility = function () {
         if (avatar.isVisible()) {
             avatar.hide();
@@ -284,13 +326,18 @@ gui.Caret = function Caret(cursor) {
             avatar.show();
         }
     };
+    /**
+     * @return {undefined}
+     */
     this.showHandle = function () {
         avatar.show();
     };
+    /**
+     * @return {undefined}
+     */
     this.hideHandle = function () {
         avatar.hide();
     };
-
     /**
      * Scrolls the view on the canvas in such a way that the caret is
      * completely visible, with a small margin around.
@@ -300,11 +347,15 @@ gui.Caret = function Caret(cursor) {
     this.ensureVisible = function () {
         var canvasElement = cursor.getOdtDocument().getOdfCanvas().getElement(),
             canvasContainerElement = canvasElement.parentNode,
-            caretOffsetRect,
+            caretRect,
+            canvasContainerRect,
             // margin around the caret when calculating the visibility,
             // to have the caret not stick directly to the containing border
-            // size in pixels
-            caretMargin = 5;
+            // size in pixels, and also to avoid it hiding below scrollbars.
+            // The scrollbar width is in most cases the offsetWidth - clientWidth.
+            // We assume a 5px distance from the boundary is A Good Thing.
+            horizontalMargin = canvasContainerElement.offsetWidth - canvasContainerElement.clientWidth + 5,
+            verticalMargin = canvasContainerElement.offsetHeight - canvasContainerElement.clientHeight + 5;
 
         // The visible part of the canvas is set by changing the
         // scrollLeft/scrollTop properties of the containing element
@@ -315,42 +366,56 @@ gui.Caret = function Caret(cursor) {
         // * size of the caret
         // * size of the canvas
 
-        caretOffsetRect = getRelativeCaretOffsetRect(span,
-                                                     canvasContainerElement,
-                                                     caretMargin);
+        caretRect = getCaretClientRectWithMargin(span, {
+            top: verticalMargin,
+            left: horizontalMargin,
+            bottom: verticalMargin,
+            right: horizontalMargin
+        });
+        canvasContainerRect = canvasContainerElement.getBoundingClientRect();
 
-        // check vertically
-        // not below upper side of visible part of the canvas?
-        if ((caretOffsetRect.top) < canvasContainerElement.scrollTop) {
-            canvasContainerElement.scrollTop = caretOffsetRect.top;
-        // not above lower side of visible part of the canvas?
-        } else if (caretOffsetRect.bottom >
-                   (canvasContainerElement.scrollTop + canvasContainerElement.clientHeight - 1)) {
-            canvasContainerElement.scrollTop =
-                caretOffsetRect.bottom - canvasContainerElement.clientHeight + 1;
+        // Vertical adjustment
+        if (caretRect.top < canvasContainerRect.top) {
+            canvasContainerElement.scrollTop -= canvasContainerRect.top - caretRect.top;
+        } else if (caretRect.bottom > canvasContainerRect.bottom) {
+            canvasContainerElement.scrollTop += caretRect.bottom - canvasContainerRect.bottom;
         }
 
-        // check horizontally
-        // not before left side of visible part of the canvas?
-        if (caretOffsetRect.left < canvasContainerElement.scrollLeft) {
-            canvasContainerElement.scrollLeft = caretOffsetRect.left;
-        // not behind right side of visible part of the canvas?
-        } else if (caretOffsetRect.right >
-                    (canvasContainerElement.scrollLeft + canvasContainerElement.clientWidth - 1)) {
-            canvasContainerElement.scrollLeft =
-                caretOffsetRect.right - canvasContainerElement.clientWidth + 1;
+        // Horizontal adjustment
+        if (caretRect.left < canvasContainerRect.left) {
+            canvasContainerElement.scrollLeft -= canvasContainerRect.left - caretRect.left;
+        } else if (caretRect.right > canvasContainerRect.right) {
+            canvasContainerElement.scrollLeft += caretRect.right - canvasContainerRect.right;
         }
+        handleUpdate();
     };
 
+    /**
+     * @param {!function(!Object=)} callback Callback to call when the destroy is complete, passing an error object in case of error
+     * @return {undefined}
+     */
+    this.destroy = function (callback) {
+        runtime.clearTimeout(blinkTimeout);
+        avatar.destroy(function (err) {
+            if (err) {
+                callback(err);
+            } else {
+                cursorNode.removeChild(span);
+                callback();
+            }
+        });
+    };
+    
     function init() {
         var dom = cursor.getOdtDocument().getDOM(),
             htmlns = dom.documentElement.namespaceURI;
-
-        span = dom.createElementNS(htmlns, "span");
-
+        span = /**@type{!HTMLSpanElement}*/
+               (dom.createElementNS(htmlns, "span"));
+        span.style.top = DEFAULT_CARET_TOP;
         cursorNode = cursor.getNode();
         cursorNode.appendChild(span);
-        avatar = new gui.Avatar(cursorNode);
+        avatar = new gui.Avatar(cursorNode, avatarInitiallyVisible);
+        handleUpdate();
     }
     init();
 };

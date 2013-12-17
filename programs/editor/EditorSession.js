@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright (C) 2012 KO GmbH <copyright@kogmbh.com>
+ * Copyright (C) 2013 KO GmbH <copyright@kogmbh.com>
  *
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
@@ -9,6 +9,9 @@
  * the License, or (at your option) any later version.  The code is distributed
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
  *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
@@ -30,47 +33,73 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
-/*global define,runtime,gui,ops */
+
+/*global define, runtime, core, gui, ops, document */
+
 define("webodf/editor/EditorSession", [
-    "dojo/text!webodf/editor/fonts/fonts.css"
-], function (fontsCSS) {
+    "dojo/text!resources/fonts/fonts.css"
+], function (fontsCSS) { // fontsCSS is retrieved as a string, using dojo's text retrieval AMD plugin
     "use strict";
 
-    runtime.loadClass("ops.SessionImplementation");
-    runtime.loadClass("ops.NowjsOperationRouter");
-    runtime.loadClass("ops.NowjsUserModel");
+    runtime.libraryPaths = function () {
+        return [ "../../webodf/lib" ];
+    };
+
+    runtime.loadClass("core.DomUtils");
+    runtime.loadClass("odf.OdfUtils");
+    runtime.loadClass("ops.OdtDocument");
+    runtime.loadClass("ops.StepsTranslator");
+    runtime.loadClass("ops.Session");
+    runtime.loadClass("odf.Namespaces");
     runtime.loadClass("odf.OdfCanvas");
-    runtime.loadClass("gui.CaretFactory");
+    runtime.loadClass("odf.OdfUtils");
+    runtime.loadClass("gui.CaretManager");
     runtime.loadClass("gui.Caret");
     runtime.loadClass("gui.SessionController");
     runtime.loadClass("gui.SessionView");
+    runtime.loadClass("gui.TrivialUndoManager");
+    runtime.loadClass("gui.SelectionViewManager");
+    runtime.loadClass("core.EventNotifier");
+    runtime.loadClass("gui.ShadowCursor");
 
-    var EditorSession = function EditorSession(session, memberid) {
+    /**
+     * Instantiate a new editor session attached to an existing operation session
+     * @param {!ops.Session} session
+     * @param {!string} localMemberId
+     * @param {{viewOptions:gui.SessionViewOptions,directParagraphStylingEnabled:boolean}} config
+     * @constructor
+     */
+    var EditorSession = function EditorSession(session, localMemberId, config) {
         var self = this,
             currentParagraphNode = null,
-            currentNamedStyleName = null,
+            currentCommonStyleName = null,
             currentStyleName = null,
+            caretManager,
+            selectionViewManager,
             odtDocument = session.getOdtDocument(),
-            textns = "urn:oasis:names:tc:opendocument:xmlns:text:1.0",
+            textns = odf.Namespaces.textns,
+            fontStyles = document.createElement('style'),
             formatting = odtDocument.getFormatting(),
-            eventListener = {};
+            domUtils = new core.DomUtils(),
+            odfUtils = new odf.OdfUtils(),
+            eventNotifier = new core.EventNotifier([
+                EditorSession.signalMemberAdded,
+                EditorSession.signalMemberUpdated,
+                EditorSession.signalMemberRemoved,
+                EditorSession.signalCursorAdded,
+                EditorSession.signalCursorMoved,
+                EditorSession.signalCursorRemoved,
+                EditorSession.signalParagraphChanged,
+                EditorSession.signalCommonStyleCreated,
+                EditorSession.signalCommonStyleDeleted,
+                EditorSession.signalParagraphStyleModified,
+                EditorSession.signalUndoStackChanged]),
+            shadowCursor = new gui.ShadowCursor(odtDocument);
 
-        this.sessionController = new gui.SessionController(session, memberid);
-        this.sessionView = new gui.SessionView(session, new gui.CaretFactory(self.sessionController));
-        this.availableFonts = [];
-
-        eventListener.userAdded = [];
-        eventListener.userRemoved = [];
-        eventListener.cursorMoved = [];
-        eventListener.paragraphChanged = [];
-        eventListener.styleCreated = [];
-        eventListener.styleDeleted = [];
-        eventListener.paragraphStyleModified = [];
-
-        /*
-         * @return {Array.{!string}}
+        /**
+         * @return {Array.<!string>}
          */
         function getAvailableFonts() {
             var availableFonts, regex, matches;
@@ -88,37 +117,88 @@ define("webodf/editor/EditorSession", [
 
             return availableFonts;
         }
-        this.availableFonts = getAvailableFonts();
 
         function checkParagraphStyleName() {
             var newStyleName,
-                newNamedStyleName;
+                newCommonStyleName;
 
             newStyleName = currentParagraphNode.getAttributeNS(textns, 'style-name');
+
             if (newStyleName !== currentStyleName) {
                 currentStyleName = newStyleName;
-                // check if named style is still the same
-                newNamedStyleName = formatting.getFirstNamedParentStyleNameOrSelf(newStyleName);
-                if (!newNamedStyleName) {
-                    // TODO: how to handle default styles?
-                    return;
-                }
-                // a named style
-                if (newNamedStyleName !== currentNamedStyleName) {
-                    currentNamedStyleName = newNamedStyleName;
-                    self.emit('paragraphChanged', {
+                // check if common style is still the same
+                newCommonStyleName = formatting.getFirstCommonParentStyleNameOrSelf(newStyleName);
+                if (!newCommonStyleName) {
+                    // Default style, empty-string name
+                    currentCommonStyleName = newStyleName = currentStyleName = "";
+                    self.emit(EditorSession.signalParagraphChanged, {
                         type: 'style',
                         node: currentParagraphNode,
-                        styleName: currentNamedStyleName
+                        styleName: currentCommonStyleName
+                    });
+                    return;
+                }
+                // a common style
+                if (newCommonStyleName !== currentCommonStyleName) {
+                    currentCommonStyleName = newCommonStyleName;
+                    self.emit(EditorSession.signalParagraphChanged, {
+                        type: 'style',
+                        node: currentParagraphNode,
+                        styleName: currentCommonStyleName
                     });
                 }
             }
+        }
+        /**
+         * Creates a NCName from the passed string
+         * @param {!string} name
+         * @return {!string}
+         */
+        function createNCName(name) {
+            var letter,
+                result = "",
+                i;
+
+            // encode
+            for (i = 0; i < name.length; i++) {
+                letter = name[i];
+                // simple approach, can be improved to not skip other allowed chars
+                if (letter.match(/[a-zA-Z0-9.-_]/) !== null) {
+                    result += letter;
+                } else {
+                    result += "_" + letter.charCodeAt(0).toString(16) + "_";
+                }
+            }
+            // ensure leading char is from proper range
+            if (result.match(/^[a-zA-Z_]/) === null) {
+                result = "_" + result;
+            }
+
+            return result;
+        }
+
+        function uniqueParagraphStyleNCName(name) {
+            var result,
+                i = 0,
+                ncMemberId = createNCName(localMemberId),
+                ncName = createNCName(name);
+
+            // create default paragraph style
+            // localMemberId is used to avoid id conflicts with ids created by other members
+            result = ncName + "_" + ncMemberId;
+            // then loop until result is really unique
+            while (formatting.hasParagraphStyle(result)) {
+                result = ncName + "_" + i + "_" + ncMemberId;
+                i++;
+            }
+
+            return result;
         }
 
         function trackCursor(cursor) {
             var node;
 
-            node = odtDocument.getParagraphElement(cursor.getSelection().focusNode);
+            node = odtDocument.getParagraphElement(cursor.getNode());
             if (!node) {
                 return;
             }
@@ -126,90 +206,92 @@ define("webodf/editor/EditorSession", [
             checkParagraphStyleName();
         }
 
-        function trackCurrentParagraph(paragraphNode) {
-            if (paragraphNode !== currentParagraphNode) {
-                return;
+        function trackCurrentParagraph(info) {
+            var cursor = odtDocument.getCursor(localMemberId),
+                range = cursor && cursor.getSelectedRange(),
+                paragraphRange = odtDocument.getDOM().createRange();
+            paragraphRange.selectNode(info.paragraphElement);
+            if ((range && domUtils.rangesIntersect(range, paragraphRange)) || info.paragraphElement === currentParagraphNode) {
+                self.emit(EditorSession.signalParagraphChanged, info);
+                checkParagraphStyleName();
             }
-            checkParagraphStyleName();
+            paragraphRange.detach();
         }
 
-        // Custom signals, that make sense in the Editor context. We do not want to expose webodf's ops signals to random bits of the editor UI. 
-        session.subscribe(ops.SessionImplementation.signalCursorAdded, function (cursor) {
-            self.emit('userAdded', cursor.getMemberId());
+        function onMemberAdded(member) {
+            self.emit(EditorSession.signalMemberAdded, member.getMemberId());
+        }
+
+        function onMemberUpdated(member) {
+            self.emit(EditorSession.signalMemberUpdated, member.getMemberId());
+        }
+
+        function onMemberRemoved(memberId) {
+            self.emit(EditorSession.signalMemberRemoved, memberId);
+        }
+
+        function onCursorAdded(cursor) {
+            self.emit(EditorSession.signalCursorAdded, cursor.getMemberId());
             trackCursor(cursor);
-        });
+        }
 
-        session.subscribe(ops.SessionImplementation.signalCursorRemoved, function (memberId) {
-            self.emit('userRemoved', memberId);
-        });
+        function onCursorRemoved(memberId) {
+            self.emit(EditorSession.signalCursorRemoved, memberId);
+        }
 
-        session.subscribe(ops.SessionImplementation.signalCursorMoved, function (cursor) {
+        function onCursorMoved(cursor) {
             // Emit 'cursorMoved' only when *I* am moving the cursor, not the other users
-            if (cursor.getMemberId() === memberid) {
-                self.emit('cursorMoved', cursor);
+            if (cursor.getMemberId() === localMemberId) {
+                self.emit(EditorSession.signalCursorMoved, cursor);
+                trackCursor(cursor);
             }
-        });
-        
-        session.subscribe(ops.SessionImplementation.signalStyleCreated, function (newStyleName) {
-            self.emit('styleCreated', newStyleName);
-        });
+        }
 
-        session.subscribe(ops.SessionImplementation.signalStyleDeleted, function (styleName) {
-            self.emit('styleDeleted', styleName);
-        });
+        function onStyleCreated(newStyleName) {
+            self.emit(EditorSession.signalCommonStyleCreated, newStyleName);
+        }
 
-        session.subscribe(ops.SessionImplementation.signalParagraphStyleModified, function (styleName) {
-            self.emit('paragraphStyleModified', styleName);
-        });
+        function onStyleDeleted(styleName) {
+            self.emit(EditorSession.signalCommonStyleDeleted, styleName);
+        }
 
-        session.subscribe(ops.SessionImplementation.signalParagraphChanged, trackCurrentParagraph);
-        
-        this.startEditing = function () {
-            self.sessionController.startEditing();
-        };
+        function onParagraphStyleModified(styleName) {
+            self.emit(EditorSession.signalParagraphStyleModified, styleName);
+        }
 
-        this.endEditing = function () {
-            self.sessionController.endEditing();
-        };
-        
         /**
          * Call all subscribers for the given event with the specified argument
          * @param {!string} eventid
          * @param {Object} args
          */
         this.emit = function (eventid, args) {
-            var i, subscribers;
-            runtime.assert(eventListener.hasOwnProperty(eventid),
-                "unknown event fired \"" + eventid + "\"");
-            subscribers = eventListener[eventid];
-            runtime.log("firing event \"" + eventid + "\" to " + subscribers.length + " subscribers.");
-            for (i = 0; i < subscribers.length; i += 1) {
-                subscribers[i](args);
-            }
+            eventNotifier.emit(eventid, args);
         };
-        
+
         /**
          * Subscribe to a given event with a callback
          * @param {!string} eventid
          * @param {!Function} cb
          */
         this.subscribe = function (eventid, cb) {
-            runtime.assert(eventListener.hasOwnProperty(eventid),
-                "tried to subscribe to unknown event \"" + eventid + "\"");
-            eventListener[eventid].push(cb);
-            runtime.log("event \"" + eventid + "\" subscribed.");
+            eventNotifier.subscribe(eventid, cb);
         };
 
-        this.getUserDetails = function (memberId, subscriber) {
-            return session.getUserModel().getUserDetails(memberId, subscriber);
-        };
-
-        this.unsubscribeForUserDetails = function (memberId, subscriber) {
-            return session.getUserModel().unsubscribeForUserDetails(memberId, subscriber);
+        /**
+         * @param {!string} eventid
+         * @param {!Function} cb
+         * @return {undefined}
+         */
+        this.unsubscribe = function (eventid, cb) {
+            eventNotifier.unsubscribe(eventid, cb);
         };
 
         this.getCursorPosition = function () {
-            return odtDocument.getCursorPosition(memberid);
+            return odtDocument.getCursorPosition(localMemberId);
+        };
+
+        this.getCursorSelection = function () {
+            return odtDocument.getCursorSelection(localMemberId);
         };
 
         this.getOdfCanvas = function () {
@@ -225,27 +307,78 @@ define("webodf/editor/EditorSession", [
         };
 
         this.getCurrentParagraphStyle = function () {
-            return currentNamedStyleName;
+            return currentCommonStyleName;
         };
 
-        this.setCurrentParagraphStyle = function (value) {
-            var op;
-            if (currentNamedStyleName !== value) {
-                op = new ops.OpSetParagraphStyle(session);
-                op.init({
-                    memberid: memberid,
-                    position: self.getCursorPosition(),
-                    styleNameBefore: currentNamedStyleName,
-                    styleNameAfter: value
-                });
-                session.enqueue(op);
+        /**
+         * Round the step up to the next step
+         * @param {!number} step
+         * @returns {!boolean}
+         */
+        function roundUp(step) {
+            return step === ops.StepsTranslator.NEXT_STEP;
+        }
+
+        /**
+         * Applies the paragraph style with the given
+         * style name to all the paragraphs within
+         * the cursor selection.
+         * @param {!string} styleName
+         * @return {undefined}
+         */
+        this.setCurrentParagraphStyle = function (styleName) {
+            var range = odtDocument.getCursor(localMemberId).getSelectedRange(),
+                paragraphs = odfUtils.getParagraphElements(range),
+                opQueue = [];
+
+            paragraphs.forEach(function (paragraph) {
+                var paragraphStartPoint = odtDocument.convertDomPointToCursorStep(paragraph, 0, roundUp),
+                    paragraphStyleName = paragraph.getAttributeNS(odf.Namespaces.textns, "style-name"),
+                    opSetParagraphStyle;
+
+                if (paragraphStyleName !== styleName) {
+                    opSetParagraphStyle = new ops.OpSetParagraphStyle();
+                    opSetParagraphStyle.init({
+                        memberid: localMemberId,
+                        styleName: styleName,
+                        position: paragraphStartPoint
+                    });
+                    opQueue.push(opSetParagraphStyle);
+                }
+            });
+
+            if (opQueue.length > 0) {
+                session.enqueue(opQueue);
             }
         };
 
-        this.getParagraphStyleElement = function (styleName) {
-            return odtDocument.getParagraphStyleElement(styleName);
+        this.insertTable = function (initialRows, initialColumns, tableStyleName, tableColumnStyleName, tableCellStyleMatrix) {
+            var op = new ops.OpInsertTable();
+            op.init({
+                memberid: localMemberId,
+                position: self.getCursorPosition(),
+                initialRows: initialRows,
+                initialColumns: initialColumns,
+                tableStyleName: tableStyleName,
+                tableColumnStyleName: tableColumnStyleName,
+                tableCellStyleMatrix: tableCellStyleMatrix
+            });
+            session.enqueue([op]);
         };
-        
+
+        /**
+         * Takes a style name and returns the corresponding paragraph style
+         * element. If the style name is an empty string, the default style
+         * is returned.
+         * @param {!string} styleName
+         * @return {Element}
+         */
+        this.getParagraphStyleElement = function (styleName) {
+            return (styleName === "")
+                ? formatting.getDefaultStyleElement('paragraph')
+                : odtDocument.getParagraphStyleElement(styleName);
+        };
+
         /**
          * Returns if the style is used anywhere in the document
          * @param {!Element} styleElement
@@ -255,41 +388,97 @@ define("webodf/editor/EditorSession", [
             return formatting.isStyleUsed(styleElement);
         };
 
+        function getDefaultParagraphStyleAttributes() {
+            var styleNode = formatting.getDefaultStyleElement('paragraph');
+            if (styleNode) {
+                return formatting.getInheritedStyleAttributes(styleNode);
+            }
+
+            return null;
+        }
+
+        /**
+         * Returns the attributes of a given paragraph style name
+         * (with inheritance). If the name is an empty string,
+         * the attributes of the default style are returned.
+         * @param {!string} styleName
+         * @return {Object}
+         */
         this.getParagraphStyleAttributes = function (styleName) {
-            return odtDocument.getParagraphStyleAttributes(styleName);
+            return (styleName === "")
+                ? getDefaultParagraphStyleAttributes()
+                : odtDocument.getParagraphStyleAttributes(styleName);
         };
 
-        this.updateParagraphStyle = function (styleName, info) {
+        /**
+         * Creates and enqueues a paragraph-style cloning operation.
+         * Returns the created id for the new style.
+         * @param {!string} styleName  id of the style to update
+         * @param {!{paragraphProperties,textProperties}} setProperties  properties which are set
+         * @param {!{paragraphPropertyNames,textPropertyNames}=} removedProperties  properties which are removed
+         * @return {undefined}
+         */
+        this.updateParagraphStyle = function (styleName, setProperties, removedProperties) {
             var op;
-            op = new ops.OpUpdateParagraphStyle(session);
+            op = new ops.OpUpdateParagraphStyle();
             op.init({
-                memberid: memberid,
-                position: self.getCursorPosition(),
+                memberid: localMemberId,
                 styleName: styleName,
-                info: info
+                setProperties: setProperties,
+                removedProperties: (!removedProperties) ? {} : removedProperties
             });
-            session.enqueue(op);
+            session.enqueue([op]);
         };
 
-        this.cloneStyle = function (styleName, newStyleName) {
-            var op;
-            op = new ops.OpCloneStyle(session);
+        /**
+         * Creates and enqueues a paragraph-style cloning operation.
+         * Returns the created id for the new style.
+         * @param {!string} styleName id of the style to clone
+         * @param {!string} newStyleDisplayName display name of the new style
+         * @return {!string}
+         */
+        this.cloneParagraphStyle = function (styleName, newStyleDisplayName) {
+            var newStyleName = uniqueParagraphStyleNCName(newStyleDisplayName),
+                styleNode = self.getParagraphStyleElement(styleName),
+                formatting = odtDocument.getFormatting(),
+                op, setProperties, attributes, i;
+
+            setProperties = formatting.getStyleAttributes(styleNode);
+            // copy any attributes directly on the style
+            attributes = styleNode.attributes;
+            for (i = 0; i < attributes.length; i += 1) {
+                // skip...
+                // * style:display-name -> not copied, set to new string below
+                // * style:name         -> not copied, set from op by styleName property
+                // * style:family       -> "paragraph" always, set by op
+                if (!/^(style:display-name|style:name|style:family)/.test(attributes[i].name)) {
+                    setProperties[attributes[i].name] = attributes[i].value;
+                }
+            }
+
+            setProperties['style:display-name'] = newStyleDisplayName;
+
+            op = new ops.OpAddStyle();
             op.init({
-                memberid: memberid,
-                styleName: styleName,
-                newStyleName: newStyleName
+                memberid: localMemberId,
+                styleName: newStyleName,
+                styleFamily: 'paragraph',
+                setProperties: setProperties
             });
-            session.enqueue(op);
+            session.enqueue([op]);
+
+            return newStyleName;
         };
 
         this.deleteStyle = function (styleName) {
             var op;
-            op = new ops.OpDeleteStyle(session);
+            op = new ops.OpRemoveStyle();
             op.init({
-                memberid: memberid,
-                styleName: styleName
+                memberid: localMemberId,
+                styleName: styleName,
+                styleFamily: 'paragraph'
             });
-            session.enqueue(op);
+            session.enqueue([op]);
         };
 
         /**
@@ -298,13 +487,13 @@ define("webodf/editor/EditorSession", [
          * first font name for any given family is kept.
          * The elements of the array are objects containing the font's name and
          * the family.
-         * @return {Array.{Object}}
+         * @return {Array.<!Object>}
          */
         this.getDeclaredFonts = function () {
             var fontMap = formatting.getFontMap(),
-                sortedNames = [],
                 usedFamilies = [],
                 array = [],
+                sortedNames,
                 key,
                 value,
                 i;
@@ -325,15 +514,162 @@ define("webodf/editor/EditorSession", [
                         name: key,
                         family: value
                     });
-                    usedFamilies.push(value);
+                    if (value) {
+                        usedFamilies.push(value);
+                    }
                 }
             }
 
             return array;
         };
 
-        this.subscribe('cursorMoved', trackCursor);
+        this.getSelectedHyperlinks = function () {
+            var cursor = odtDocument.getCursor(localMemberId);
+            // no own cursor yet/currently added?
+            if (!cursor) {
+                return [];
+            }
+            return odfUtils.getHyperlinkElements(cursor.getSelectedRange());
+        };
+
+        this.getSelectedRange = function () {
+            var cursor = odtDocument.getCursor(localMemberId);
+            return cursor && cursor.getSelectedRange();
+        };
+
+        function undoStackModified(e) {
+            self.emit(EditorSession.signalUndoStackChanged, e);
+        }
+
+        this.hasUndoManager = function () {
+            return Boolean(self.sessionController.getUndoManager());
+        };
+
+        this.undo = function () {
+            var undoManager = self.sessionController.getUndoManager();
+            undoManager.moveBackward(1);
+        };
+
+        this.redo = function () {
+            var undoManager = self.sessionController.getUndoManager();
+            undoManager.moveForward(1);
+        };
+
+        /**
+         *
+         * @param {!string} mimetype
+         * @param {!string} content base64 encoded string
+         * @param {!number} width
+         * @param {!number} height
+         */
+        this.insertImage = function (mimetype, content, width, height) {
+            self.sessionController.getTextManipulator().removeCurrentSelection();
+            self.sessionController.getImageManager().insertImage(mimetype, content, width, height);
+        };
+
+        /**
+         * @param {!string} memberId
+         * @return {?ops.Member}
+         */
+        this.getMember = function (memberId) {
+            return odtDocument.getMember(memberId);
+        };
+
+        /**
+         * @param {!function(!Object=)} callback, passing an error object in case of error
+         * @return {undefined}
+         */
+        this.destroy = function(callback) {
+            var head = document.getElementsByTagName('head')[0];
+
+            head.removeChild(fontStyles);
+
+            odtDocument.unsubscribe(ops.OdtDocument.signalMemberAdded, onMemberAdded);
+            odtDocument.unsubscribe(ops.OdtDocument.signalMemberUpdated, onMemberUpdated);
+            odtDocument.unsubscribe(ops.OdtDocument.signalMemberRemoved, onMemberRemoved);
+            odtDocument.unsubscribe(ops.OdtDocument.signalCursorAdded, onCursorAdded);
+            odtDocument.unsubscribe(ops.OdtDocument.signalCursorRemoved, onCursorRemoved);
+            odtDocument.unsubscribe(ops.OdtDocument.signalCursorMoved, onCursorMoved);
+            odtDocument.unsubscribe(ops.OdtDocument.signalCommonStyleCreated, onStyleCreated);
+            odtDocument.unsubscribe(ops.OdtDocument.signalCommonStyleDeleted, onStyleDeleted);
+            odtDocument.unsubscribe(ops.OdtDocument.signalParagraphStyleModified, onParagraphStyleModified);
+            odtDocument.unsubscribe(ops.OdtDocument.signalParagraphChanged, trackCurrentParagraph);
+            odtDocument.unsubscribe(ops.OdtDocument.signalUndoStackChanged, undoStackModified);
+
+            self.sessionView.destroy(function(err) {
+                if (err) {
+                    callback(err);
+                } else {
+                    delete self.sessionView;
+                    caretManager.destroy(function(err) {
+                        if (err) {
+                            callback(err);
+                        } else {
+                            selectionViewManager.destroy(function(err) {
+                                if (err) {
+                                    callback(err);
+                                } else {
+                                    self.sessionController.destroy(function(err) {
+                                        if (err) {
+                                            callback(err);
+                                        } else {
+                                            delete self.sessionController;
+                                            callback();
+                                        }
+                                    });
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+        };
+
+        function init() {
+            var head = document.getElementsByTagName('head')[0];
+
+            // TODO: fonts.css should be rather done by odfCanvas, or?
+            fontStyles.type = 'text/css';
+            fontStyles.media = 'screen, print, handheld, projection';
+            fontStyles.appendChild(document.createTextNode(fontsCSS));
+            head.appendChild(fontStyles);
+
+            self.sessionController = new gui.SessionController(session, localMemberId, shadowCursor, {
+                directParagraphStylingEnabled: config.directParagraphStylingEnabled
+            });
+            caretManager = new gui.CaretManager(self.sessionController);
+            selectionViewManager = new gui.SelectionViewManager();
+            self.sessionView = new gui.SessionView(config.viewOptions, localMemberId, session, caretManager, selectionViewManager);
+            self.availableFonts = getAvailableFonts();
+            selectionViewManager.registerCursor(shadowCursor, true);
+            // Custom signals, that make sense in the Editor context. We do not want to expose webodf's ops signals to random bits of the editor UI.
+            odtDocument.subscribe(ops.OdtDocument.signalMemberAdded, onMemberAdded);
+            odtDocument.subscribe(ops.OdtDocument.signalMemberUpdated, onMemberUpdated);
+            odtDocument.subscribe(ops.OdtDocument.signalMemberRemoved, onMemberRemoved);
+            odtDocument.subscribe(ops.OdtDocument.signalCursorAdded, onCursorAdded);
+            odtDocument.subscribe(ops.OdtDocument.signalCursorRemoved, onCursorRemoved);
+            odtDocument.subscribe(ops.OdtDocument.signalCursorMoved, onCursorMoved);
+            odtDocument.subscribe(ops.OdtDocument.signalCommonStyleCreated, onStyleCreated);
+            odtDocument.subscribe(ops.OdtDocument.signalCommonStyleDeleted, onStyleDeleted);
+            odtDocument.subscribe(ops.OdtDocument.signalParagraphStyleModified, onParagraphStyleModified);
+            odtDocument.subscribe(ops.OdtDocument.signalParagraphChanged, trackCurrentParagraph);
+            odtDocument.subscribe(ops.OdtDocument.signalUndoStackChanged, undoStackModified);
+        }
+
+        init();
     };
+
+    /**@const*/EditorSession.signalMemberAdded =            "memberAdded";
+    /**@const*/EditorSession.signalMemberUpdated =          "memberUpdated";
+    /**@const*/EditorSession.signalMemberRemoved =          "memberRemoved";
+    /**@const*/EditorSession.signalCursorAdded =            "cursorAdded";
+    /**@const*/EditorSession.signalCursorRemoved =          "cursorRemoved";
+    /**@const*/EditorSession.signalCursorMoved =            "cursorMoved";
+    /**@const*/EditorSession.signalParagraphChanged =       "paragraphChanged";
+    /**@const*/EditorSession.signalCommonStyleCreated =     "styleCreated";
+    /**@const*/EditorSession.signalCommonStyleDeleted =     "styleDeleted";
+    /**@const*/EditorSession.signalParagraphStyleModified = "paragraphStyleModified";
+    /**@const*/EditorSession.signalUndoStackChanged =       "signalUndoStackChanged";
 
     return EditorSession;
 });

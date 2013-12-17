@@ -9,6 +9,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -29,13 +32,14 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
 /*global runtime: true, core: true*/
 runtime.loadClass("core.Base64");
 
 var args = arguments,
-    webodfjsFilename = args[1];
+    webodfjsFilename = args[1],
+    outputFilename = args[2];
 
 runtime.readFile("content/web/viewer.html.in", "utf-8", function (err, vdata) {
     if (err) {
@@ -48,7 +52,7 @@ runtime.readFile("content/web/viewer.html.in", "utf-8", function (err, vdata) {
             return;
         }
         vdata = vdata.replace("@WEBODF_JS@", wdata);
-        runtime.writeFile("content/web/viewer.html", vdata, function (err) {
+        runtime.writeFile(outputFilename, vdata, function (err) {
             if (err) {
                 runtime.log(err);
                 return;

@@ -8,6 +8,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -28,7 +31,7 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
 /*global core, runtime*/
 runtime.loadClass("core.Zip");
@@ -49,6 +52,7 @@ core.ZipTests = function ZipTests(runner) {
             r.shouldBeNonNull(t, "t.err");
             callback();
         });
+        return zip;
     }
 
     function testNonZipFile(callback) {
@@ -58,7 +62,7 @@ core.ZipTests = function ZipTests(runner) {
             t.exists = exists;
             r.shouldBe(t, "t.exists", "true");
             // check that zip file opening returns an error
-            var zip = new core.Zip("core/ZipTests.js", function (err) {
+            t.zip = new core.Zip("core/ZipTests.js", function (err) {
                 t.err = err;
                 r.shouldBeNonNull(t, "t.err");
                 callback();
@@ -67,7 +71,7 @@ core.ZipTests = function ZipTests(runner) {
     }
 
     function testHi(path, callback) {
-        var zip = new core.Zip(path, function (err, zip) {
+        t.zip = new core.Zip(path, function (err, zip) {
             t.err = err;
             t.zip = zip;
             r.shouldBeNull(t, "t.err");
@@ -109,11 +113,40 @@ core.ZipTests = function ZipTests(runner) {
             zip.write(function (err) {
                 t.err = err;
                 r.shouldBeNull(t, "t.err");
-                runtime.deleteFile(filename, function (err) {
+                runtime.deleteFile(filename, function () {
                     callback();
                 });
             });
         });
+    }
+
+    function testSave() {
+        var zip = new core.Zip("savetest.zip", null),
+            data = runtime.byteArrayFromString("hello", "utf8");
+        zip.save("a", data, false, new Date());
+        zip.save("b", data, false, new Date());
+        zip.save("c", data, false, new Date());
+        t.entries = zip.getEntries();
+        r.shouldBe(t, "t.entries.length", "3");
+        r.shouldBe(t, "t.entries[0].filename", "'a'");
+        r.shouldBe(t, "t.entries[1].filename", "'b'");
+        r.shouldBe(t, "t.entries[2].filename", "'c'");
+    }
+
+    function testRemove() {
+        var zip = new core.Zip("savetest.zip", null),
+            data = runtime.byteArrayFromString("hello", "utf8");
+        zip.save("a", data, false, new Date());
+        zip.save("b", data, false, new Date());
+        zip.save("c", data, false, new Date());
+        t.removeA = zip.remove("a");
+        t.remove1 = zip.remove("1");
+        t.entries = zip.getEntries();
+        r.shouldBe(t, "t.removeA", "true");
+        r.shouldBe(t, "t.remove1", "false");
+        r.shouldBe(t, "t.entries.length", "2");
+        r.shouldBe(t, "t.entries[0].filename", "'b'");
+        r.shouldBe(t, "t.entries[1].filename", "'c'");
     }
 
     this.setUp = function () {
@@ -123,16 +156,19 @@ core.ZipTests = function ZipTests(runner) {
         t = {};
     };
     this.tests = function () {
-        return [];
+        return r.name([
+            testSave,
+            testRemove
+        ]);
     };
     this.asyncTests = function () {
-        return [
+        return r.name([
             testNonExistingFile,
             testNonZipFile,
             testHiUncompressed,
             testHiCompressed,
             testCreateZip
-        ];
+        ]);
     };
 };
 core.ZipTests.prototype.description = function () {

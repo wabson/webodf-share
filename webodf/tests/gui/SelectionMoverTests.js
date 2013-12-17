@@ -8,6 +8,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -28,9 +31,9 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
-/*global runtime, core, gui*/
+/*global runtime, core, gui, Node, NodeFilter*/
 runtime.loadClass("gui.SelectionMover");
 /**
  * @constructor
@@ -39,8 +42,8 @@ runtime.loadClass("gui.SelectionMover");
  */
 gui.SelectionMoverTests = function SelectionMoverTests(runner) {
     "use strict";
-    var r = runner,
-        t, testarea,
+    var t, testarea,
+        r = runner,
         testXMLs = [
             { x: "<a/>", n: 1, t: 0 },
             { x: "<a><b/></a>", n: 3, t: 0 },
@@ -56,69 +59,49 @@ gui.SelectionMoverTests = function SelectionMoverTests(runner) {
         var domDocument = testarea.ownerDocument,
             p = domDocument.createElement("p"),
             text = domDocument.createTextNode("MMMMM MMMMM MMMMM MMMMM MMMMM"),
-            selection,
             cursor,
             mover;
         testarea.appendChild(p);
         p.appendChild(text);
         p.style.width = "5em";// break line after each 'MMMMM'
-        selection = new core.Selection(domDocument);
-        cursor = new core.Cursor(selection, domDocument);
+        cursor = new core.Cursor(domDocument, "Joe");
         mover = new gui.SelectionMover(cursor, p);
-        t = { doc: domDocument, p: p, text: text, selection: cursor.getSelection(), mover: mover };
+        t = { doc: domDocument, p: p, mover: mover, cursor: cursor };
     }
     function createDoc(xml) {
         var domDocument = testarea.ownerDocument,
             doc = runtime.parseXML(xml),
             mover,
-            selection,
             cursor,
             node = /**@type{!Element}*/(domDocument.importNode(doc.documentElement, true));
         testarea.appendChild(node);
-        selection = new core.Selection(domDocument);
-        cursor = new core.Cursor(selection, domDocument);
+        cursor = new core.Cursor(domDocument, "Joe");
         mover = new gui.SelectionMover(cursor, node);
-        t = { doc: doc, root: node, selection: cursor.getSelection(), mover: mover, cursor: cursor };
+        t = { doc: doc, root: node, mover: mover, cursor: cursor };
     }
     function testUpDownTraversal() {
         setupDoc();
-        r.shouldBe(t, "t.selection.rangeCount", "1");
-        t.r = t.selection.getRangeAt(0);
-        r.shouldBeNonNull(t, "t.r");
-        t.r.setStart(t.text, 0);
-        r.shouldBe(t, "t.r.startContainer", "t.text");
-        r.shouldBe(t, "t.r.startOffset", "0");
         t.mover.movePointForward(1);
-        t.r = t.selection.getRangeAt(0);
-        r.shouldBe(t, "t.r.startContainer", "t.text");
-        r.shouldBe(t, "t.r.startOffset", "0");
+        r.shouldBe(t, "'M'", "t.cursor.getNode().previousSibling.data");
+        r.shouldBe(t, "'MMMM MMMMM MMMMM MMMMM MMMMM'", "t.cursor.getNode().nextSibling.data");
         t.mover.movePointBackward(1);
-        t.r = t.selection.getRangeAt(0);
-        r.shouldBe(t, "t.r.startContainer", "t.text");
-        r.shouldBe(t, "t.r.startOffset", "0");
-/*
-        t.mover.moveLineForward();
-//        t.selection.modify("move", "forward", "line");
-        t.r = t.selection.getRangeAt(0);
-        r.shouldBe(t, "t.r.startContainer", "t.p.firstChild");
-        r.shouldBe(t, "t.r.startOffset", "6");
-*/
+        r.shouldBe(t, "'MMMMM MMMMM MMMMM MMMMM MMMMM'", "t.cursor.getNode().nextSibling.data");
     }
     function testForthBack() {
         setupDoc();
         var n = 1;
-        t.textValue = t.text.data;
+        t.textValue = t.cursor.getNode().nextSibling.data;
         while (t.mover.movePointForward(1)) {
             n += 1;
         }
         r.shouldBe(t, n.toString(), "30");
-        r.shouldBe(t, "t.text.data", "t.textValue");
+        r.shouldBe(t, "t.cursor.getNode().previousSibling.data", "t.textValue");
         n = 1;
         while (t.mover.movePointBackward(1)) {
             n += 1;
         }
         r.shouldBe(t, n.toString(), "30");
-        r.shouldBe(t, "t.text.data", "t.textValue");
+        r.shouldBe(t, "t.cursor.getNode().nextSibling.data", "t.textValue");
     }
     function testXMLForthBack(xml, positions) {
         createDoc(xml);
@@ -143,17 +126,8 @@ gui.SelectionMoverTests = function SelectionMoverTests(runner) {
      * @implements core.PositionFilter
      */
     function AcceptAllPositionFilter() {
-        this.acceptPosition = function (iterator) {
-            return 1;
-        };
-    }
-    /**
-     * @constructor
-     * @implements core.PositionFilter
-     */
-    function TextNodePositionFilter() {
-        this.acceptPosition = function (iterator) {
-            return 1;
+        this.acceptPosition = function () {
+            return core.PositionFilter.FilterResult.FILTER_ACCEPT;
         };
     }
     function testXMLsForthBack() {
@@ -163,31 +137,89 @@ gui.SelectionMoverTests = function SelectionMoverTests(runner) {
             testXMLForthBack(xml.x, xml.n);
         }
     }
-    function countAndConfirm(xml, n, availableSteps, filter) {
+    function countAndConfirm(xml, n, filter) {
         createDoc(xml);
         var counter = t.mover.getStepCounter(),
-            steps = counter.countForwardSteps(1, filter),
+            steps = counter.countSteps(1, filter),
             sum = 0,
             stepped = 0;
         while (steps > 0) {
             stepped += t.mover.movePointForward(steps);
             sum += steps;
-            steps = counter.countForwardSteps(1, filter);
+            steps = counter.countSteps(1, filter);
         }
+        t.totalSteps = counter.countStepsToPosition(t.root, 0, filter);
         r.shouldBe(t, stepped.toString(), (n - 1).toString());
         r.shouldBe(t, sum.toString(), (n - 1).toString());
+        r.shouldBe(t, "t.totalSteps", (-1 * (n - 1)).toString());
     }
     function testCountAndConfirm() {
-        var i, xml, filter1 = new TextNodePositionFilter(),
+        var i, xml,
             filter2 = new AcceptAllPositionFilter();
         for (i = 0; i < testXMLs.length; i += 1) {
             xml = testXMLs[i];
-            countAndConfirm(xml.x, xml.n, xml.n - 1, filter2);
+            countAndConfirm(xml.x, xml.n, filter2);
         }
     }
+    function testCountStepsToNode() {
+        createDoc("<t><p>hello</p><p></p></t>");
+        var range = t.root.ownerDocument.createRange(),
+            counter = t.mover.getStepCounter(),
+            emptyNode = t.root.lastChild,
+            steps;
+        range.setStart(emptyNode, 0);
+        range.collapse(true);
+        t.cursor.setSelectedRange(range);
+        steps = counter.countStepsToPosition(emptyNode, 0, new AcceptAllPositionFilter());
+        r.shouldBe(t, steps.toString(), "0");
+    }
+    /**
+     * @constructor
+     * @implements core.PositionFilter
+     */
+    function AcceptNonSpanPositionFilter() {
+        this.acceptPosition = function (iterator) {
+            var node = iterator.container();
+            if (node.nodeType === Node.ELEMENT_NODE
+                    && node.localName === "a") {
+                return core.PositionFilter.FilterResult.FILTER_ACCEPT;
+            }
+            return core.PositionFilter.FilterResult.FILTER_REJECT;
+        };
+    }
+    function countStepsToPosition_CursorInInvalidPlace_ValidPositionRequested() {
+        createDoc("<t><p><a id='a1'/><a id='a2'/><a id='a3'/><b>|</b></p></t>");
+        var range = t.root.ownerDocument.createRange(),
+            counter = t.mover.getStepCounter(),
+            cursorSelection = t.root.getElementsByTagName("b")[0],
+            target;
 
+        range.setStart(cursorSelection.firstChild, 0);
+        range.collapse(true);
+        t.cursor.setSelectedRange(range);
+        target = t.root.getElementsByTagName("a")[1];
+
+        t.steps = counter.countStepsToPosition(target, 0, new AcceptNonSpanPositionFilter());
+
+        r.shouldBe(t, "t.steps", "-1");
+    }
+    function countStepsToPosition_CursorInInvalidPlace_InvalidPositionRequested() {
+        createDoc("<t><p><a id='a1'/><b>|</b><a id='a2'/><b>|</b></p></t>");
+        var range = t.root.ownerDocument.createRange(),
+            counter = t.mover.getStepCounter(),
+            cursorSelection = t.root.getElementsByTagName("b")[1],
+            target;
+
+        range.setStart(cursorSelection.firstChild, 0);
+        range.collapse(true);
+        t.cursor.setSelectedRange(range);
+        target = t.root.getElementsByTagName("b")[0].firstChild;
+
+        t.steps = counter.countStepsToPosition(target, 0, new AcceptNonSpanPositionFilter());
+
+        r.shouldBe(t, "t.steps", "-1");
+    }
     this.setUp = function () {
-        var odfcanvas;
         t = {};
         testarea = core.UnitTest.provideTestAreaDiv();
     };
@@ -197,12 +229,15 @@ gui.SelectionMoverTests = function SelectionMoverTests(runner) {
     };
 
     this.tests = function () {
-        return [
+        return r.name([
             testUpDownTraversal,
             testForthBack,
             testXMLsForthBack,
-            testCountAndConfirm
-        ];
+            testCountAndConfirm,
+            testCountStepsToNode,
+            countStepsToPosition_CursorInInvalidPlace_ValidPositionRequested,
+            countStepsToPosition_CursorInInvalidPlace_InvalidPositionRequested
+        ]);
     };
     this.asyncTests = function () {
         return [

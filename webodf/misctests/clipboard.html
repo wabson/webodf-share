@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/2.0.2/jquery.min.js"></script>
+    <title>Clipboard Behaviours</title>
+    <style>
+        table {
+            white-space: pre;
+            background-color: rgba(0,0,0,0.2);
+            border: 1px solid white;
+            border-collapse: collapse;
+        }
+
+        tr, td {
+            border: 1px solid white;
+            border-collapse: collapse;
+        }
+    </style>
+    <script type="text/javascript">
+        var logNode;
+
+        function dumpTypes(clipboard) {
+            var i, typesTable = $("<table/>");
+
+            function addType(type) {
+                var row = $("<tr/>"),
+                    nameCell = $("<td/>"),
+                    valueCell =  $("<td/>");
+
+                nameCell.append(type);
+                valueCell.append(document.createTextNode(clipboard.getData(type)));
+
+                row.append(nameCell);
+                row.append(valueCell);
+                typesTable.append(row);
+            }
+
+            for(i = 0; i < clipboard.types.length; i++) {
+                addType(clipboard.types[i]);
+            }
+            return typesTable;
+        }
+
+
+        function dumpItems(clipboard) {
+            var itemsTable = $("<table/>"),
+                    i;
+
+            function addItem(item) {
+                var row = $("<tr/>"),
+                    nameCell = $("<td/>"),
+                    valueCell =  $("<td/>"),
+                    dataCell =  $("<td/>");
+
+                nameCell.append(item.kind);
+                valueCell.append(item.type);
+                item.getAsString(function(content) {
+                    dataCell.append(document.createTextNode(content));
+                });
+
+                row.append(nameCell);
+                row.append(valueCell);
+                row.append(dataCell);
+                itemsTable.append(row);
+            }
+
+            for(i = 0; i < clipboard.items.length; i++) {
+                addItem(clipboard.items[i]);
+            }
+            return i === 0 ? "No files" : itemsTable;
+        }
+
+        function dumpFiles(clipboard) {
+            var filesTable = $("<table/>"),
+                i;
+
+            for(i = 0; i < clipboard.files.length; i++) {
+                var row = $("<tr/>"),
+                    nameCell = $("<td/>"),
+                    valueCell =  $("<td/>");
+
+                nameCell.append(clipboard.files[i].name);
+                valueCell.append(clipboard.files[i].type);
+
+                row.append(nameCell);
+                row.append(valueCell);
+                filesTable.append(row);
+            }
+            return i === 0 ? "No files" : filesTable;
+        }
+
+        function captureHtml(cell) {
+            return function() {
+                var pasteDest = $("#content");
+                cell.append(document.createTextNode(pasteDest[0].innerHTML));
+            };
+        }
+
+        function onCopy(e) {
+            recordEvent("copy", e);
+            if (e.clipboardData) {
+                log("adding custom data: " + e.clipboardData.setData('custom/data', 'Copy - clipboard.html ' + new Date()));
+            }
+        }
+
+        function onCut(e) {
+            recordEvent("cut", e);
+            if (e.clipboardData) {
+                log("adding custom data: " + e.clipboardData.setData('custom/data', 'Cut - clipboard.html ' + new Date()));
+            }
+        }
+
+        function onPaste(e) {
+            var clipboardTable = $("#clipboardData"),
+                keys = ["types", "files", "items"],
+                capturedRow = $("<tr/>"),
+                capturedName = $("<td/>"),
+                capturedHtml = $("<td/>");
+
+            clipboardTable.empty();
+            recordEvent("paste", e);
+            if (e.clipboardData) {
+                if (Object.keys(e.clipboardData).length > 0) {
+                    keys = Object.keys(e.clipboardData);
+                } else {
+                    // We only want properties on the clipboard such as types or files.
+                    // FF does not report these in the keys array however (potentially they are
+                    // specified higher up the prototype).
+                    // In this case, see if any of the keys we *know* we want are available on
+                    // the clipboard object.
+                    keys = keys.filter(function(key) { return key in e.clipboardData; });
+                }
+                keys.forEach(function(key) {
+                    var row = $("<tr/>"),
+                        nameCell = $("<td/>"),
+                        valueCell =  $("<td/>");
+
+                    nameCell.append(key);
+
+                    switch(key) {
+                        case "types":
+                            valueCell.append(dumpTypes(e.clipboardData));
+                            break;
+                        case "files":
+                            valueCell.append(dumpFiles(e.clipboardData));
+                            break;
+                        case "items":
+                            valueCell.append(dumpItems(e.clipboardData));
+                            break;
+                        default:
+                            valueCell.append('' + e.clipboardData[key]);
+                            break;
+                    }
+
+                    row.append(nameCell);
+                    row.append(valueCell);
+                    clipboardTable.append(row);
+                });
+            }
+
+            capturedName.append("Captured HTML");
+            capturedRow.append(capturedName);
+            capturedRow.append(capturedHtml);
+            clipboardTable.append(capturedRow);
+
+            $("#content").empty();
+            setTimeout(captureHtml(capturedHtml), 500);
+        }
+
+        function recordEvent(name, e) {
+            log(name + (e.clipboardData ? " (clipboardData accessible)" : ""));
+        }
+
+        function record(msg, result) {
+            return function(e) {
+                e.preventDefault();
+                log(msg + (e.clipboardData ? " (clipboardData accessible)" : ""));
+                return result;
+            };
+        }
+
+        function log(msg) {
+            logNode.append(msg + "\n");
+        }
+
+        function listenEvent(eventTarget, eventType, eventHandler) {
+            var onVariant = "on" + eventType;
+            if (eventTarget.hasOwnProperty(onVariant)) {
+                log("Attached on" + eventType + " using direct property '" + onVariant + "'");
+                eventTarget[onVariant] = eventHandler;
+            } else if (eventTarget.attachEvent && eventTarget.attachEvent(onVariant, eventHandler)) {
+                log("Attached on" + eventType + " using attachEvent");
+            } else if (eventTarget.addEventListener) {
+                eventTarget.addEventListener(eventType, eventHandler, false);
+                log("Attached " + eventType + " using addEventListener ");
+            }
+        }
+        
+        $(function() {
+            var content = $('body');
+            logNode = $("#log");
+            listenEvent(content[0], "cut", onCut);
+            listenEvent(content[0], "beforecut", record("beforecut", false));
+            listenEvent(content[0], "copy", onCopy);
+            listenEvent(content[0], "beforecopy", record("beforecopy"));
+            listenEvent(content[0], "paste", onPaste);
+            listenEvent(content[0], "beforepaste", record("beforepaste", false));
+        })
+    </script>
+</head>
+<body>
+<div id="content" contenteditable="true">paste here!</div>
+<table id="clipboardData"></table>
+<pre id="log"></pre>
+</body>
+</html>

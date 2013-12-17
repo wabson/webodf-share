@@ -9,6 +9,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -29,7 +32,7 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
 /*global Ext, console, app, window, LocalFileSystem, JSON, FileReader, runtime*/
 Ext.define("WebODFApp.model.FileSystemProxy", (function () {
@@ -240,11 +243,11 @@ Ext.define("WebODFApp.model.FileSystemProxy", (function () {
                     });
             };
         },
-    
+
         create: function (operation, callback, scope) {
             finishOperation(this, operation, callback, scope);
         },
-    
+
         read: function (operation, callback, scope) {
             var me = this,
                 records = scanner.files;
@@ -262,15 +265,15 @@ Ext.define("WebODFApp.model.FileSystemProxy", (function () {
             // announce success
             operation.setSuccessful();
             operation.setCompleted();
-    
+
             // finish with callback
             Ext.callback(callback, scope || me, [operation]);
         },
-    
+
         update: function (operation, callback, scope) {
             finishOperation(this, operation, callback, scope);
         },
-    
+
         destroy: function (operation, callback, scope) {
             finishOperation(this, operation, callback, scope);
         }

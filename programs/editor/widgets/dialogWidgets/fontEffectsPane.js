@@ -1,6 +1,7 @@
 /**
- * Copyright (C) 2012 KO GmbH <copyright@kogmbh.com>
-
+ * @license
+ * Copyright (C) 2013 KO GmbH <copyright@kogmbh.com>
+ *
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -8,6 +9,9 @@
  * the License, or (at your option) any later version.  The code is distributed
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
  *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
@@ -29,28 +33,32 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
-/*global define,require,document,dijit,console */
+
+/*global runtime,define,require,document,dijit */
+
 define("webodf/editor/widgets/dialogWidgets/fontEffectsPane", [], function () {
     "use strict";
 
-    var FontEffectsPane = function (editorSession, callback) {
+    var FontEffectsPane = function (callback) {
         var self = this,
+            editorSession,
             contentPane,
             form,
             preview,
             textColorPicker,
-            backgroundColorPicker;
+            backgroundColorPicker,
+            fontPicker;
 
         this.widget = function () {
             return contentPane;
         };
-        
+
         this.value = function () {
             var textProperties = form.get('value'),
                 textStyle = textProperties.textStyle;
-            
+
             textProperties.fontWeight = (textStyle.indexOf('bold') !== -1)
                                             ? 'bold'
                                             : 'normal';
@@ -64,7 +72,7 @@ define("webodf/editor/widgets/dialogWidgets/fontEffectsPane", [], function () {
             delete textProperties.textStyle;
             return textProperties;
         };
-        
+
         this.setStyle = function (styleName) {
             var style = editorSession.getParagraphStyleAttributes(styleName)['style:text-properties'],
                 s_bold,
@@ -111,32 +119,34 @@ define("webodf/editor/widgets/dialogWidgets/fontEffectsPane", [], function () {
 
         function init(cb) {
             require([
+                "dojo",
                 "dojo/ready",
                 "dojo/dom-construct",
                 "dijit/layout/ContentPane",
                 "dojox/widget/ColorPicker",
                 "webodf/editor/widgets/fontPicker"
-            ], function (ready, domConstruct, ContentPane, ColorPicker, FontPicker) {
-                var translator = document.translator;
+            ], function (dojo, ready, domConstruct, ContentPane, ColorPicker, FontPicker) {
+                var editorBase = dojo.config && dojo.config.paths &&
+                            dojo.config.paths['webodf/editor'];
+                runtime.assert(editorBase, "webodf/editor path not defined in dojoConfig");
                 ready(function () {
                     contentPane = new ContentPane({
-                        title: translator("fontEffects"),
-                        href: "widgets/dialogWidgets/fontEffectsPane.html",
+                        title: runtime.tr("Font Effects"),
+                        href: editorBase+"/widgets/dialogWidgets/fontEffectsPane.html",
                         preload: true
                     });
 
                     contentPane.onLoad = function () {
                         var textColorTB = dijit.byId('textColorTB'),
-                            backgroundColorTB = dijit.byId('backgroundColorTB'),
-                            fontPicker;
+                            backgroundColorTB = dijit.byId('backgroundColorTB');
 
                         form = dijit.byId('fontEffectsPaneForm');
-                        document.translateContent(form.domNode);
+                        runtime.translateContent(form.domNode);
 
                         preview = document.getElementById('previewText');
                         textColorPicker = dijit.byId('textColorPicker');
                         backgroundColorPicker = dijit.byId('backgroundColorPicker');
-                        
+
                         // Bind dojox widgets' values to invisible form elements, for easy parsing
                         textColorPicker.onChange = function (value) {
                             textColorTB.set('value', value);
@@ -145,10 +155,11 @@ define("webodf/editor/widgets/dialogWidgets/fontEffectsPane", [], function () {
                             backgroundColorTB.set('value', value);
                         };
 
-                        fontPicker = new FontPicker(editorSession, function (picker) {
+                        fontPicker = new FontPicker(function (picker) {
                             picker.widget().startup();
                             document.getElementById('fontPicker').appendChild(picker.widget().domNode);
                             picker.widget().name = 'fontName';
+                            picker.setEditorSession(editorSession);
                         });
 
                         // Automatically update preview when selections change
@@ -170,20 +181,28 @@ define("webodf/editor/widgets/dialogWidgets/fontEffectsPane", [], function () {
                             }
 
                             preview.style.fontSize = form.value.fontSize + 'pt';
-                            preview.style.fontFamily = form.value.fontName;
+                            preview.style.fontFamily = fontPicker.getFamily(form.value.fontName);
                             preview.style.color = form.value.color;
                             preview.style.backgroundColor = form.value.backgroundColor;
                         });
                     };
+
                     return cb();
                 });
             });
         }
-        
+
+        this.setEditorSession = function(session) {
+            editorSession = session;
+            if (fontPicker) {
+                fontPicker.setEditorSession(editorSession);
+            }
+        };
+
         init(function () {
             return callback(self);
         });
     };
-    
+
     return FontEffectsPane;
 });

@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright (C) 2012 KO GmbH <copyright@kogmbh.com>
+ * Copyright (C) 2012-2013 KO GmbH <copyright@kogmbh.com>
  *
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
@@ -9,6 +9,9 @@
  * the License, or (at your option) any later version.  The code is distributed
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
  *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
@@ -30,48 +33,43 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
+
 /*global runtime, ops*/
 
 /**
  * @constructor
  * @implements ops.Operation
  */
-ops.OpMoveCursor = function OpMoveCursor(session) {
+ops.OpMoveCursor = function OpMoveCursor() {
     "use strict";
 
-    var memberid, timestamp, number;
+    var memberid, timestamp, position, length, /**@type {!string}*/selectionType;
 
     this.init = function (data) {
         memberid = data.memberid;
         timestamp = data.timestamp;
-        number = data.number;
+        position = data.position;
+        length = data.length || 0;
+        selectionType = data.selectionType || ops.OdtCursor.RangeSelection;
     };
 
-    this.execute = function (domroot) {
-        var odtDocument = session.getOdtDocument(),
-            cursor = odtDocument.getCursor(memberid),
-            positionFilter = odtDocument.getPositionFilter(),
-            stepCounter,
-            steps;
+    this.isEdit = false;
 
-        runtime.assert(cursor !== undefined,
-            "cursor for [" + memberid + "] not found (MoveCursor).");
+    this.execute = function (odtDocument) {
+        var cursor = odtDocument.getCursor(memberid),
+            selectedRange;
 
-        stepCounter = cursor.getStepCounter();
-
-        if (number > 0) {
-            steps = stepCounter.countForwardSteps(number, positionFilter);
-        } else if (number < 0) {
-            steps = -stepCounter.countBackwardSteps(-number, positionFilter);
-        } else {
-            // nothing to do
-            return;
+        if (!cursor) {
+            return false;
         }
-        runtime.log("Moving. moving, moving... walkableSteps " + steps);
-        cursor.move(steps);
-        session.emit(ops.SessionImplementation.signalCursorMoved, cursor);
+
+        selectedRange = odtDocument.convertCursorToDomRange(position, length);
+        cursor.setSelectedRange(selectedRange, length >= 0);
+        cursor.setSelectionType(selectionType);
+        odtDocument.emit(ops.OdtDocument.signalCursorMoved, cursor);
+        return true;
     };
 
     this.spec = function () {
@@ -79,8 +77,18 @@ ops.OpMoveCursor = function OpMoveCursor(session) {
             optype: "MoveCursor",
             memberid: memberid,
             timestamp: timestamp,
-            number: number
+            position: position,
+            length: length,
+            selectionType: selectionType
         };
     };
-
 };
+/**@typedef{{
+    optype:string,
+    memberid:string,
+    timestamp:number,
+    position:number,
+    length:number,
+    selectionType:number
+}}*/
+ops.OpMoveCursor.Spec;

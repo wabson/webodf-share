@@ -1,5 +1,7 @@
 /**
- * Copyright (C) 2012 KO GmbH <jos.van.den.oever@kogmbh.com>
+ * @license
+ * Copyright (C) 2012-2013 KO GmbH <copyright@kogmbh.com>
+ *
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -7,6 +9,9 @@
  * the License, or (at your option) any later version.  The code is distributed
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
  *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
@@ -28,22 +33,22 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
+
 /*jslint sub: true*/
-/*global runtime, odf, xmldom, webodf_css, alert */
+/*global runtime, odf, xmldom, webodf_css, core, gui */
+
+runtime.loadClass("core.DomUtils");
 runtime.loadClass("odf.OdfContainer");
 runtime.loadClass("odf.Formatting");
 runtime.loadClass("xmldom.XPath");
-/**
- * This class manages a loaded ODF document that is shown in an element.
- * It takes care of giving visual feedback on loading, ensures that the
- * stylesheets are loaded.
- * @constructor
- * @param {!Element} element Put and ODF Canvas inside this element.
- * @return {?}
- **/
-odf.OdfCanvas = (function () {
+runtime.loadClass("odf.FontLoader");
+runtime.loadClass("odf.Style2CSS");
+runtime.loadClass("odf.OdfUtils");
+runtime.loadClass("gui.AnnotationViewManager");
+
+(function () {
     "use strict";
     /**
      * A loading queue where various tasks related to loading can be placed
@@ -52,10 +57,11 @@ odf.OdfCanvas = (function () {
      * @constructor
      */
     function LoadingQueue() {
-        var queue = [],
+        var /**@type{!Array.<!Function>}*/
+            queue = [],
             taskRunning = false;
         /**
-         * @param {Function} task
+         * @param {!Function} task
          * @return {undefined}
          */
         function run(task) {
@@ -63,8 +69,8 @@ odf.OdfCanvas = (function () {
             runtime.setTimeout(function () {
                 try {
                     task();
-                } catch (e) {
-                    runtime.log(e);
+                } catch (/**@type{*}*/e) {
+                    runtime.log(String(e));
                 }
                 taskRunning = false;
                 if (queue.length > 0) {
@@ -79,7 +85,7 @@ odf.OdfCanvas = (function () {
             queue.length = 0;
         };
         /**
-         * @param {Function} loadingTask
+         * @param {!Function} loadingTask
          * @return {undefined}
          */
         this.addToQueue = function (loadingTask) {
@@ -91,19 +97,32 @@ odf.OdfCanvas = (function () {
     }
     /**
      * @constructor
-     * @param css
+     * @param {!HTMLStyleElement} css
      */
     function PageSwitcher(css) {
-        var sheet = css.sheet,
+        var sheet = /**@type{!CSSStyleSheet}*/(css.sheet),
+            /**@type{number}*/
             position = 1;
+        /**
+         * @return {undefined}
+         */
         function updateCSS() {
             while (sheet.cssRules.length > 0) {
                 sheet.deleteRule(0);
             }
-            sheet.insertRule('office|presentation draw|page {display:none;}', 0);
-            sheet.insertRule("office|presentation draw|page:nth-child(" +
-                position + ") {display:block;}", 1);
+            // The #shadowContent contains the master pages, with each page in the slideshow
+            // corresponding to a master page in #shadowContent, and in the same order.
+            // So, when showing a page, also make it's master page (behind it) visible.
+            sheet.insertRule('#shadowContent draw|page {display:none;}', 0);
+            sheet.insertRule('office|presentation draw|page {display:none;}', 1);
+            sheet.insertRule("#shadowContent draw|page:nth-of-type(" +
+                position + ") {display:block;}", 2);
+            sheet.insertRule("office|presentation draw|page:nth-of-type(" +
+                position + ") {display:block;}", 3);
         }
+        /**
+         * @return {undefined}
+         */
         this.showFirstPage = function () {
             position = 1;
             updateCSS();
@@ -125,6 +144,10 @@ odf.OdfCanvas = (function () {
             }
         };
 
+        /**
+         * @param {!number} n  number of the page
+         * @return {undefined}
+         */
         this.showPage = function (n) {
             if (n > 0) {
                 position = n;
@@ -133,6 +156,15 @@ odf.OdfCanvas = (function () {
         };
 
         this.css = css;
+
+        /**
+         * @param {!function(!Object=)} callback, passing an error object in case of error
+         * @return {undefined}
+         */
+        this.destroy = function(callback) {
+            css.parentNode.removeChild(css);
+            callback();
+        };
     }
     /**
      * Register event listener on DOM element.
@@ -151,143 +183,23 @@ odf.OdfCanvas = (function () {
             eventTarget["on" + eventType] = eventHandler;
         }
     }
-    /**
-     * Class that listens to events and sends a signal if the selection changes.
-     * @constructor
-     * @param {!Element} element
-     */
-    function SelectionWatcher(element) {
-        var selection = [], count = 0, listeners = [];
-        /**
-         * @param {!Element} ancestor
-         * @param {Node} descendant
-         * @return {!boolean}
-         */
-        function isAncestorOf(ancestor, descendant) {
-            while (descendant) {
-                if (descendant === ancestor) {
-                    return true;
-                }
-                descendant = descendant.parentNode;
-            }
-            return false;
-        }
-        /**
-         * @param {!Element} element
-         * @param {!Range} range
-         * @return {!boolean}
-         */
-        function fallsWithin(element, range) {
-            return isAncestorOf(element, range.startContainer) &&
-                isAncestorOf(element, range.endContainer);
-        }
-        /**
-         * @return {!Array.<!Range>}
-         */
-        function getCurrentSelection() {
-            var s = [], selection = runtime.getWindow().getSelection(), i, r;
-            for (i = 0; i < selection.rangeCount; i += 1) {
-                r = selection.getRangeAt(i);
-                // check if the nodes in the range fall completely within the
-                // element
-                if (r !== null && fallsWithin(element, r)) {
-                    s.push(r);
-                }
-            }
-            return s;
-        }
-        /**
-         * @param {Range} rangeA
-         * @param {Range} rangeB
-         * @return {!boolean}
-         */
-        function rangesNotEqual(rangeA, rangeB) {
-            if (rangeA === rangeB) {
-                return false;
-            }
-            if (rangeA === null || rangeB === null) {
-                return true;
-            }
-            return rangeA.startContainer !== rangeB.startContainer ||
-                rangeA.startOffset !== rangeB.startOffset ||
-                rangeA.endContainer !== rangeB.endContainer ||
-                rangeA.endOffset !== rangeB.endOffset;
-        }
-        /**
-         * @return {undefined}
-         */
-        function emitNewSelection() {
-            var i, l = listeners.length;
-            for (i = 0; i < l; i += 1) {
-                listeners[i](element, selection);
-            }
-        }
-        /**
-         * @param {!Array.<!Range>} selection
-         * @return {!Array.<!Range>}
-         */
-        function copySelection(selection) {
-            var s = [selection.length], i, oldr, r,
-                doc = element.ownerDocument;
-            for (i = 0; i < selection.length; i += 1) {
-                oldr = selection[i];
-                r = doc.createRange();
-                r.setStart(oldr.startContainer, oldr.startOffset);
-                r.setEnd(oldr.endContainer, oldr.endOffset);
-                s[i] = r;
-            }
-            return s;
-        }
-        /**
-         * @return {undefined}
-         */
-        function checkSelection() {
-            var s = getCurrentSelection(), i;
-            if (s.length === selection.length) {
-                for (i = 0; i < s.length; i += 1) {
-                    if (rangesNotEqual(s[i], selection[i])) {
-                        break;
-                    }
-                }
-                if (i === s.length) {
-                    return; // no change
-                }
-            }
-            selection = s;
-            selection = copySelection(s);
-            emitNewSelection();
-        }
-        /**
-         * @param {!string} eventName
-         * @param {!function(!Element, !Array.<!Range>)} handler
-         * @return {undefined}
-         */
-        this.addListener = function (eventName, handler) {
-            var i, l = listeners.length;
-            for (i = 0; i < l; i += 1) {
-                if (listeners[i] === handler) {
-                    return;
-                }
-            }
-            listeners.push(handler);
-        };
-        listenEvent(element, "mouseup", checkSelection);
-        listenEvent(element, "keyup", checkSelection);
-        listenEvent(element, "keydown", checkSelection);
-    }
-    var style2CSS = new odf.Style2CSS(),
-        namespaces = style2CSS.namespaces,
-        drawns  = namespaces.draw,
-        fons    = namespaces.fo,
-        officens = namespaces.office,
-        stylens = namespaces.style,
-        svgns   = namespaces.svg,
-        tablens = namespaces.table,
-        textns  = namespaces.text,
-        xlinkns = namespaces.xlink,
-        xmlns = namespaces.xml,
-        window = runtime.getWindow(),
-        xpath = new xmldom.XPath();
+
+    // variables per class (so not per instance!)
+    var /**@const@type {!string}*/drawns  = odf.Namespaces.drawns,
+        /**@const@type {!string}*/fons    = odf.Namespaces.fons,
+        /**@const@type {!string}*/officens = odf.Namespaces.officens,
+        /**@const@type {!string}*/stylens = odf.Namespaces.stylens,
+        /**@const@type {!string}*/svgns   = odf.Namespaces.svgns,
+        /**@const@type {!string}*/tablens = odf.Namespaces.tablens,
+        /**@const@type {!string}*/textns  = odf.Namespaces.textns,
+        /**@const@type {!string}*/xlinkns = odf.Namespaces.xlinkns,
+        /**@const@type {!string}*/xmlns = odf.Namespaces.xmlns,
+        /**@const@type {!string}*/presentationns = odf.Namespaces.presentationns,
+        /**@const@type {!string}*/webodfhelperns = "urn:webodf:names:helper",
+        /**@type{?Window}*/window = runtime.getWindow(),
+        xpath = xmldom.XPath,
+        odfUtils = new odf.OdfUtils(),
+        domUtils = new core.DomUtils();
 
     /**
      * @param {!Element} element
@@ -300,28 +212,132 @@ odf.OdfCanvas = (function () {
     }
     /**
      * A new styles.xml has been loaded. Update the live document with it.
-     * @param {!Element} odfelement
+     * @param {!odf.OdfContainer} odfcontainer
+     * @param {!odf.Formatting} formatting
      * @param {!HTMLStyleElement} stylesxmlcss
      * @return {undefined}
      **/
-    function handleStyles(odfelement, stylesxmlcss) {
+    function handleStyles(odfcontainer, formatting, stylesxmlcss) {
         // update the css translation of the styles
         var style2css = new odf.Style2CSS();
         style2css.style2css(
-            stylesxmlcss.sheet, 
-            odfelement.fontFaceDecls, 
-            odfelement.styles,
-            odfelement.automaticStyles
+            odfcontainer.getDocumentType(),
+            /**@type{!CSSStyleSheet}*/(stylesxmlcss.sheet),
+            formatting.getFontMap(),
+            odfcontainer.rootElement.styles,
+            odfcontainer.rootElement.automaticStyles
         );
     }
+
     /**
-     * @param {!string} id
-     * @param {!Element} frame
-     * @param {!StyleSheet} stylesheet
+     * @param {!odf.OdfContainer} odfContainer
+     * @param {!HTMLStyleElement} fontcss
      * @return {undefined}
      **/
-    function setFramePosition(id, frame, stylesheet) {
-        frame.setAttribute('styleid', id);
+    function handleFonts(odfContainer, fontcss) {
+        // update the css references to the fonts
+        var fontLoader = new odf.FontLoader();
+        fontLoader.loadFonts(odfContainer,
+            /**@type{!CSSStyleSheet}*/(fontcss.sheet));
+    }
+
+    /**
+     * @param {!odf.OdfContainer} odfContainer
+     * @param {string} masterPageName
+     * @return {?Element}
+     */
+    function getMasterPageElement(odfContainer, masterPageName) {
+        if (!masterPageName) {
+            return null;
+        }
+
+        var masterStyles = odfContainer.rootElement.masterStyles,
+            masterStylesChild = masterStyles.firstElementChild;
+
+        while (masterStylesChild) {
+            if (masterStylesChild.getAttributeNS(stylens, 'name')
+                    === masterPageName
+                    && masterStylesChild.localName === "master-page"
+                    && masterStylesChild.namespaceURI === stylens) {
+                break;
+            }
+            masterStylesChild = masterStylesChild.nextElementSibling;
+        }
+        return masterStylesChild;
+    }
+
+    /**
+     * @param {!Element} clonedNode <draw:page/>
+     * @return {undefined}
+     */
+    function dropTemplateDrawFrames(clonedNode) {
+        // drop all frames which are just template frames
+        var i, element, presentationClass,
+            clonedDrawFrameElements = clonedNode.getElementsByTagNameNS(drawns, 'frame');
+        for (i = 0; i < clonedDrawFrameElements.length; i += 1) {
+            element = /**@type{!Element}*/(clonedDrawFrameElements[i]);
+            presentationClass = element.getAttributeNS(presentationns, 'class');
+            if (presentationClass && ! /^(date-time|footer|header|page-number)$/.test(presentationClass)) {
+                element.parentNode.removeChild(element);
+            }
+        }
+    }
+
+    /**
+     * @param {!odf.OdfContainer} odfContainer
+     * @param {!Element} frame
+     * @param {!string} headerFooterId
+     * @return {?string}
+     */
+    function getHeaderFooter(odfContainer, frame, headerFooterId) {
+        var headerFooter = null,
+            i,
+            declElements = odfContainer.rootElement.body.getElementsByTagNameNS(presentationns, headerFooterId+'-decl'),
+            headerFooterName = frame.getAttributeNS(presentationns, 'use-'+headerFooterId+'-name'),
+            element;
+
+        if (headerFooterName && declElements.length > 0) {
+            for (i = 0; i < declElements.length; i += 1) {
+                element = /**@type{!Element}*/(declElements[i]);
+                if (element.getAttributeNS(presentationns, 'name') === headerFooterName) {
+                    headerFooter = element.textContent;
+                    break;
+                }
+            }
+        }
+        return headerFooter;
+    }
+
+    /**
+     * @param {!Element} rootElement
+     * @param {string} ns
+     * @param {string} localName
+     * @param {?string} value
+     * @return {undefined}
+     */
+    function setContainerValue(rootElement, ns, localName, value) {
+        var i, containerList,
+            document = rootElement.ownerDocument,
+            e;
+
+        containerList = rootElement.getElementsByTagNameNS(ns, localName);
+        for (i = 0; i < containerList.length; i += 1) {
+            clear(containerList[i]);
+            if (value) {
+                e = /**@type{!Element}*/(containerList[i]);
+                e.appendChild(document.createTextNode(value));
+            }
+        }
+    }
+
+    /**
+     * @param {string} styleid
+     * @param {!Element} frame
+     * @param {!CSSStyleSheet} stylesheet
+     * @return {undefined}
+     **/
+    function setDrawElementPosition(styleid, frame, stylesheet) {
+        frame.setAttributeNS(webodfhelperns, 'styleid', styleid);
         var rule,
             anchor = frame.getAttributeNS(textns, 'anchor-type'),
             x = frame.getAttributeNS(svgns, 'x'),
@@ -330,6 +346,7 @@ odf.OdfCanvas = (function () {
             height = frame.getAttributeNS(svgns, 'height'),
             minheight = frame.getAttributeNS(fons, 'min-height'),
             minwidth = frame.getAttributeNS(fons, 'min-width');
+
         if (anchor === "as-char") {
             rule = 'display: inline-block;';
         } else if (anchor || x || y) {
@@ -356,7 +373,7 @@ odf.OdfCanvas = (function () {
             rule += 'min-width: ' + minwidth + ';';
         }
         if (rule) {
-            rule = 'draw|' + frame.localName + '[styleid="' + id + '"] {' +
+            rule = 'draw|' + frame.localName + '[webodfhelper|styleid="' + styleid + '"] {' +
                 rule + '}';
             stylesheet.insertRule(rule, stylesheet.cssRules.length);
         }
@@ -371,175 +388,303 @@ odf.OdfCanvas = (function () {
             if (node.namespaceURI === officens &&
                     node.localName === "binary-data") {
                 // TODO: detect mime-type, assuming png for now
-                return "data:image/png;base64," + node.textContent;
+                // the base64 data can be  pretty printed, hence we need remove all the line breaks and whitespaces
+                return "data:image/png;base64," + node.textContent.replace(/[\r\n\s]/g, '');
             }
             node = node.nextSibling;
         }
         return "";
     }
     /**
-     * @param {!string} id
-     * @param {!Object} container
+     * @param {string} id
+     * @param {!odf.OdfContainer} container
      * @param {!Element} image
-     * @param {!StyleSheet} stylesheet
+     * @param {!CSSStyleSheet} stylesheet
      * @return {undefined}
      **/
     function setImage(id, container, image, stylesheet) {
-        image.setAttribute('styleid', id);
+        image.setAttributeNS(webodfhelperns, 'styleid', id);
         var url = image.getAttributeNS(xlinkns, 'href'),
-            part,
-            node;
+            /**@type{!odf.OdfPart}*/
+            part;
+        /**
+         * @param {?string} url
+         */
         function callback(url) {
-            var rule = "background-image: url(" + url + ");";
-            rule = 'draw|image[styleid="' + id + '"] {' + rule + '}';
-            stylesheet.insertRule(rule, stylesheet.cssRules.length);
+            var rule;
+            if (url) { // if part cannot be loaded, url is null
+                rule = "background-image: url(" + url + ");";
+                rule = 'draw|image[webodfhelper|styleid="' + id + '"] {' + rule + '}';
+                stylesheet.insertRule(rule, stylesheet.cssRules.length);
+            }
+        }
+        /**
+         * @param {!odf.OdfPart} p
+         */
+        function onchange(p) {
+            callback(p.url);
         }
         // look for a office:binary-data
         if (url) {
             try {
-                if (container.getPartUrl) {
-                    url = container.getPartUrl(url);
-                    callback(url);
-                } else {
-                    part = container.getPart(url);
-                    part.onchange = function (part) {
-                        callback(part.url);
-                    };
-                    part.load();
-                }
-            } catch (e) {
-                runtime.log('slight problem: ' + e);
+                part = container.getPart(url);
+                part.onchange = onchange;
+                part.load();
+            } catch (/**@type{*}*/e) {
+                runtime.log('slight problem: ' + String(e));
             }
         } else {
             url = getUrlFromBinaryDataElement(image);
             callback(url);
         }
     }
+    /**
+     * @param {!Element} odfbody
+     * @return {undefined}
+     */
     function formatParagraphAnchors(odfbody) {
-        var runtimens = "urn:webodf",
-            n,
+        var n,
             i,
             nodes = xpath.getODFElementsWithXPath(odfbody,
                 ".//*[*[@text:anchor-type='paragraph']]",
-                style2CSS.namespaceResolver);
+                odf.Namespaces.lookupNamespaceURI);
         for (i = 0; i < nodes.length; i += 1) {
             n = nodes[i];
             if (n.setAttributeNS) {
-                n.setAttributeNS(runtimens, "containsparagraphanchor", true);
+                n.setAttributeNS(webodfhelperns, "containsparagraphanchor", true);
             }
         }
     }
     /**
      * Modify tables to support merged cells (col/row span)
-     * @param {!Object} container
      * @param {!Element} odffragment
-     * @param {!StyleSheet} stylesheet
+     * @param {!string} documentns
      * @return {undefined}
      */
-    function modifyTables(container, odffragment, stylesheet) {
+    function modifyTables(odffragment, documentns) {
         var i,
             tableCells,
             node;
 
-        function modifyTableCell(container, node, stylesheet) {
-            // If we have a cell which spans columns or rows, 
+        /**
+         * @param {!Element} node
+         * @return {undefined}
+         */
+        function modifyTableCell(node) {
+            // If we have a cell which spans columns or rows,
             // then add col-span or row-span attributes.
             if (node.hasAttributeNS(tablens, "number-columns-spanned")) {
-                node.setAttribute("colspan",
+                node.setAttributeNS(documentns, "colspan",
                     node.getAttributeNS(tablens, "number-columns-spanned"));
             }
             if (node.hasAttributeNS(tablens, "number-rows-spanned")) {
-                node.setAttribute("rowspan",
+                node.setAttributeNS(documentns, "rowspan",
                     node.getAttributeNS(tablens, "number-rows-spanned"));
             }
         }
         tableCells = odffragment.getElementsByTagNameNS(tablens, 'table-cell');
         for (i = 0; i < tableCells.length; i += 1) {
             node = /**@type{!Element}*/(tableCells.item(i));
-            modifyTableCell(container, node, stylesheet);
+            modifyTableCell(node);
         }
     }
-    
+
     /**
-     * Modify ODF links to work like HTML links.
-     * @param {!Object} container
+     * Make the text:line-break elements behave like html br element.
      * @param {!Element} odffragment
-     * @param {!StyleSheet} stylesheet
      * @return {undefined}
      */
-    function modifyLinks(container, odffragment, stylesheet) {
-        var i,
-            links,
-            node;
-
-        function modifyLink(container, node, stylesheet) {
-            if (node.hasAttributeNS(xlinkns, "href")) {
-                // Ask the browser to open the link in a new window.
-                node.onclick = function () {
-                    window.open(node.getAttributeNS(xlinkns, "href"));
-                };
+    function modifyLineBreakElements(odffragment) {
+        var document = odffragment.ownerDocument,
+            lineBreakElements = domUtils.getElementsByTagNameNS(odffragment, textns, "line-break");
+        lineBreakElements.forEach(function (lineBreak) {
+            // Make sure we don't add br more than once as this method is executed whenever user undo an operation.
+            if (!lineBreak.hasChildNodes()) {
+                lineBreak.appendChild(document.createElement("br"));
             }
-        }
-        
-        // All links are of name text:a.
-        links = odffragment.getElementsByTagNameNS(textns, 'a');
-        for (i = 0; i < links.length; i += 1) {
-            node = /**@type{!Element}*/(links.item(i));
-            modifyLink(container, node, stylesheet);
-        }
+        });
     }
 
     /**
-     * @param {!Object} container
+     * Expand ODF spaces of the form <text:s text:c=N/> to N consecutive
+     * <text:s/> elements. This makes things simpler for WebODF during
+     * handling of spaces, in particular during editing.
+     * @param {!Element} odffragment
+     * @return {undefined}
+     */
+    function expandSpaceElements(odffragment) {
+        var spaces,
+            doc = odffragment.ownerDocument;
+
+        /**
+         * @param {!Element} space
+         * @return {undefined}
+         */
+        function expandSpaceElement(space) {
+            var j, count;
+            // If the space has any children, remove them and put a " " text
+            // node in place.
+            while (space.firstChild) {
+                space.removeChild(space.firstChild);
+            }
+            space.appendChild(doc.createTextNode(" "));
+
+            count = parseInt(space.getAttributeNS(textns, "c"), 10);
+            if (count > 1) {
+                // Make it a 'simple' space node
+                space.removeAttributeNS(textns, "c");
+                // Prepend count-1 clones of this space node to itself
+                for (j = 1; j < count; j += 1) {
+                    space.parentNode.insertBefore(space.cloneNode(true), space);
+                }
+            }
+        }
+
+        spaces = domUtils.getElementsByTagNameNS(odffragment, textns, "s");
+        spaces.forEach(expandSpaceElement);
+    }
+
+    /**
+     * Expand tabs to contain tab characters. This eases cursor behaviour
+     * during editing
+     * @param {!Element} odffragment
+     */
+    function expandTabElements(odffragment) {
+        var tabs;
+
+        tabs = domUtils.getElementsByTagNameNS(odffragment, textns, "tab");
+        tabs.forEach(function(tab) {
+            tab.textContent = "\t";
+        });
+    }
+    /**
      * @param {!Element} odfbody
-     * @param {!StyleSheet} stylesheet
+     * @param {!CSSStyleSheet} stylesheet
      * @return {undefined}
      **/
-    function modifyImages(container, odfbody, stylesheet) {
+    function modifyDrawElements(odfbody, stylesheet) {
         var node,
-            frames,
-            i,
-            images;
-        function namespaceResolver(prefix) {
-            return namespaces[prefix];
-        }
-        // find all the frame elements
-        frames = [];
-        node = odfbody.firstChild;
+            /**@type{!Array.<!Element>}*/
+            drawElements = [],
+            i;
+        // find all the draw:* elements
+        node = odfbody.firstElementChild;
         while (node && node !== odfbody) {
             if (node.namespaceURI === drawns) {
-                frames[frames.length] = node;
+                drawElements[drawElements.length] = node;
             }
-            if (node.firstChild) {
-                node = node.firstChild;
+            if (node.firstElementChild) {
+                node = node.firstElementChild;
             } else {
-                while (node && node !== odfbody && !node.nextSibling) {
-                    node = node.parentNode;
+                while (node && node !== odfbody && !node.nextElementSibling) {
+                    node = /**@type{!Element}*/(node.parentNode);
                 }
-                if (node && node.nextSibling) {
-                    node = node.nextSibling;
+                if (node && node.nextElementSibling) {
+                    node = node.nextElementSibling;
                 }
             }
         }
         // adjust all the frame positions
-        for (i = 0; i < frames.length; i += 1) {
-            node = frames[i];
-            setFramePosition('frame' + String(i), node, stylesheet);
+        for (i = 0; i < drawElements.length; i += 1) {
+            node = drawElements[i];
+            setDrawElementPosition('frame' + String(i), node, stylesheet);
         }
         formatParagraphAnchors(odfbody);
     }
+
     /**
-     * @param {!string} id
-     * @param {!Object} container
-     * @param {!Element} plugin
-     * @param {!StyleSheet} stylesheet
+     * @param {!odf.OdfContainer} odfContainer
+     * @param {!Element} shadowContent
+     * @param {!Element} odfbody
+     * @param {!CSSStyleSheet} stylesheet
      * @return {undefined}
      **/
-    function setVideo(id, container, plugin, stylesheet) {
-        var video, source, url, videoType, doc = plugin.ownerDocument, part, node;
+    function cloneMasterPages(odfContainer, shadowContent, odfbody, stylesheet) {
+        var masterPageName,
+            masterPageElement,
+            styleId,
+            clonedPageElement,
+            clonedElement,
+            pageNumber = 0,
+            i,
+            element,
+            elementToClone,
+            document = odfContainer.rootElement.ownerDocument;
+
+        element = odfbody.firstElementChild;
+        // no master pages to expect?
+        if (!(element && element.namespaceURI === officens &&
+              (element.localName === "presentation" || element.localName === "drawing"))) {
+            return;
+        }
+
+        element = element.firstElementChild;
+        while (element) {
+            // If there was a master-page-name attribute, then we are dealing with a draw:page.
+            // Get the referenced master page element from the master styles
+            masterPageName = element.getAttributeNS(drawns, 'master-page-name');
+            masterPageElement = getMasterPageElement(odfContainer, masterPageName);
+
+            // If the referenced master page exists, create a new page and copy over it's contents into the new page,
+            // except for the ones that are placeholders. Also, call setDrawElementPosition on each of those child frames.
+            if (masterPageElement) {
+                styleId = element.getAttributeNS(webodfhelperns, 'styleid');
+                clonedPageElement = document.createElementNS(drawns, 'draw:page');
+
+                elementToClone = masterPageElement.firstElementChild;
+                i = 0;
+                while (elementToClone) {
+                    if (elementToClone.getAttributeNS(presentationns, 'placeholder') !== 'true') {
+                        clonedElement = /**@type{!Element}*/(elementToClone.cloneNode(true));
+                        clonedPageElement.appendChild(clonedElement);
+                        setDrawElementPosition(styleId + '_' + i, clonedElement, stylesheet);
+                    }
+                    elementToClone = elementToClone.nextElementSibling;
+                    i += 1;
+                }
+                // TODO: above already do not clone nodes which match the rule for being dropped
+                dropTemplateDrawFrames(clonedPageElement);
+
+                // Append the cloned master page to the "Shadow Content" element outside the main ODF dom
+                shadowContent.appendChild(clonedPageElement);
+
+                // Get the page number by counting the number of previous master pages in this shadowContent
+                pageNumber = String(shadowContent.getElementsByTagNameNS(drawns, 'page').length);
+                // Get the page-number tag in the cloned master page and set the text content to the calculated number
+                setContainerValue(clonedPageElement, textns, 'page-number', pageNumber);
+
+                // Care for header
+                setContainerValue(clonedPageElement, presentationns, 'header', getHeaderFooter(odfContainer, /**@type{!Element}*/(element), 'header'));
+                // Care for footer
+                setContainerValue(clonedPageElement, presentationns, 'footer', getHeaderFooter(odfContainer, /**@type{!Element}*/(element), 'footer'));
+
+                // Now call setDrawElementPosition on this new page to set the proper dimensions
+                setDrawElementPosition(styleId, clonedPageElement, stylesheet);
+                // And finally, add an attribute referring to the master page, so the CSS targeted for that master page will style this
+                clonedPageElement.setAttributeNS(drawns, 'draw:master-page-name', masterPageElement.getAttributeNS(stylens, 'name'));
+            }
+
+            element = element.nextElementSibling;
+        }
+    }
+
+    /**
+     * @param {!odf.OdfContainer} container
+     * @param {!Element} plugin
+     * @return {undefined}
+     **/
+    function setVideo(container, plugin) {
+        var video, source, url, doc = plugin.ownerDocument,
+            /**@type{!odf.OdfPart}*/
+            part;
 
         url = plugin.getAttributeNS(xlinkns, 'href');
 
+        /**
+         * @param {?string} url
+         * @param {string} mimetype
+         * @return {undefined}
+         */
         function callback(url, mimetype) {
             var ns = doc.documentElement.namespaceURI;
             // test for video mimetypes
@@ -548,7 +693,9 @@ odf.OdfCanvas = (function () {
                 video.setAttribute('controls', 'controls');
 
                 source = doc.createElementNS(ns, 'source');
-                source.setAttribute('src', url);
+                if (url) {
+                    source.setAttribute('src', url);
+                }
                 source.setAttribute('type', mimetype);
 
                 video.appendChild(source);
@@ -557,21 +704,20 @@ odf.OdfCanvas = (function () {
                 plugin.innerHtml = 'Unrecognised Plugin';
             }
         }
+        /**
+         * @param {!odf.OdfPart} p
+         */
+        function onchange(p) {
+            callback(p.url, p.mimetype);
+        }
         // look for a office:binary-data
         if (url) {
             try {
-                if (container.getPartUrl) {
-                    url = container.getPartUrl(url);
-                    callback(url, 'video/mp4');
-                } else {
-                    part = container.getPart(url);
-                    part.onchange = function (part) {
-                        callback(part.url, part.mimetype);
-                    };
-                    part.load();
-                }
-            } catch (e) {
-                runtime.log('slight problem: ' + e);
+                part = container.getPart(url);
+                part.onchange = onchange;
+                part.load();
+            } catch (/**@type{*}*/e) {
+                runtime.log('slight problem: ' + String(e));
             }
         } else {
         // this will fail  atm - following function assumes PNG data]
@@ -587,14 +733,20 @@ odf.OdfCanvas = (function () {
      */
     function getNumberRule(node) {
         var style = node.getAttributeNS(stylens, "num-format"),
-            suffix = node.getAttributeNS(stylens, "num-suffix"),
-            prefix = node.getAttributeNS(stylens, "num-prefix"),
+            suffix = node.getAttributeNS(stylens, "num-suffix") || "",
+            prefix = node.getAttributeNS(stylens, "num-prefix") || "",
             rule = "",
-            stylemap = {'1': 'decimal', 'a': 'lower-latin', 'A': 'upper-latin',
-                 'i': 'lower-roman', 'I': 'upper-roman'},
+            /**@type{!Object.<string,string>}*/
+            stylemap = {
+                '1': 'decimal',
+                'a': 'lower-latin',
+                'A': 'upper-latin',
+                'i': 'lower-roman',
+                'I': 'upper-roman'
+            },
             content;
 
-        content = prefix || "";
+        content = prefix;
 
         if (stylemap.hasOwnProperty(style)) {
             content += " counter(list, " + stylemap[style] + ")";
@@ -610,10 +762,9 @@ odf.OdfCanvas = (function () {
         return rule;
     }
     /**
-     * @param {!Element} node
      * @return {!string}
      */
-    function getImageRule(node) {
+    function getImageRule() {
         var rule = "content: none;";
         return rule;
     }
@@ -622,44 +773,49 @@ odf.OdfCanvas = (function () {
      * @return {!string}
      */
     function getBulletRule(node) {
-        var rule = "",
-            bulletChar = node.getAttributeNS(textns, "bullet-char");
+        var bulletChar = node.getAttributeNS(textns, "bullet-char");
         return "content: '" + bulletChar + "';";
     }
 
+    /**
+     * @param {Element|undefined} node
+     * @return {string|undefined}
+     */
     function getBulletsRule(node) {
         var itemrule;
 
-        if (node.localName === "list-level-style-number") {
-            itemrule = getNumberRule(node);
-        } else if (node.localName === "list-level-style-image") {
-            itemrule = getImageRule(node);
-        } else if (node.localName === "list-level-style-bullet") {
-            itemrule = getBulletRule(node);
+        if (node) {
+            if (node.localName === "list-level-style-number") {
+                itemrule = getNumberRule(node);
+            } else if (node.localName === "list-level-style-image") {
+                itemrule = getImageRule();
+            } else if (node.localName === "list-level-style-bullet") {
+                itemrule = getBulletRule(node);
+            }
         }
 
         return itemrule;
     }
     /**
      * Load all the lists that are inside an odf element, and correct numbering.
-     * @param {!Object} container
      * @param {!Element} odffragment
-     * @param {!StyleSheet} stylesheet
+     * @param {!CSSStyleSheet} stylesheet
+     * @param {!string} documentns
      * @return {undefined}
      */
-    function loadLists(container, odffragment, stylesheet) {
+    function loadLists(odffragment, stylesheet, documentns) {
         var i,
             lists,
-            svgns   = namespaces.svg,
             node,
             id,
             continueList,
             styleName,
             rule,
+            /**@type{!Object.<string,string>}*/
             listMap = {},
             parentList,
             listStyles,
-            listStyle,
+            /**@type{!Object.<string,!Element>}*/
             listStyleMap = {},
             bulletRule;
 
@@ -682,20 +838,20 @@ odf.OdfCanvas = (function () {
 
             if (id) {
                 continueList = node.getAttributeNS(textns, "continue-list");
-                node.setAttribute("id", id);
+                node.setAttributeNS(documentns, "id", id);
                 rule = 'text|list#' + id + ' > text|list-item > *:first-child:before {';
 
                 styleName = node.getAttributeNS(textns, 'style-name');
                 if (styleName) {
                     node = listStyleMap[styleName];
-                    bulletRule = getBulletsRule(node.firstChild);
+                    // TODO: getFirstNonWhitespaceChild() could also return a comment. Ensure the result is proper!
+                    bulletRule = getBulletsRule(/**@type{Element|undefined}*/(odfUtils.getFirstNonWhitespaceChild(node)));
                 }
 
                 if (continueList) {
                     parentList = listMap[continueList];
                     while (parentList) {
-                        continueList = parentList;
-                        parentList = listMap[continueList];
+                        parentList = listMap[parentList];
                     }
                     rule += 'counter-increment:' + continueList + ';';
 
@@ -728,8 +884,12 @@ odf.OdfCanvas = (function () {
         }
     }
 
+    /**
+     * @param {!Document} document
+     * @return {!HTMLStyleElement}
+     */
     function addWebODFStyleSheet(document) {
-        var head = document.getElementsByTagName('head')[0],
+        var head = /**@type{!HTMLHeadElement}*/(document.getElementsByTagName('head')[0]),
             style,
             href;
         if (String(typeof webodf_css) !== "undefined") {
@@ -746,70 +906,90 @@ odf.OdfCanvas = (function () {
             style.setAttribute('rel', 'stylesheet');
         }
         style.setAttribute('type', 'text/css');
+        // TODO: make sure this is only added once per HTML document, e.g. in case of multiple odfCanvases
         head.appendChild(style);
-        return style;
+        return /**@type {!HTMLStyleElement}*/(style);
     }
     /**
-     * @param {Document} document Put and ODF Canvas inside this element.
+     * @param {!Document} document Put and ODF Canvas inside this element.
+     * @return {!HTMLStyleElement}
      */
     function addStyleSheet(document) {
-        var head = document.getElementsByTagName('head')[0],
+        var head = /**@type{!HTMLHeadElement}*/(document.getElementsByTagName('head')[0]),
             style = document.createElementNS(head.namespaceURI, 'style'),
-            text = '',
-            prefix;
+            /**@type{string}*/
+            text = '';
         style.setAttribute('type', 'text/css');
         style.setAttribute('media', 'screen, print, handheld, projection');
-        for (prefix in namespaces) {
-            if (namespaces.hasOwnProperty(prefix) && prefix) {
-                text += "@namespace " + prefix + " url(" + namespaces[prefix]
-                    + ");\n";
-            }
-        }
+        odf.Namespaces.forEachPrefix(function(prefix, ns) {
+            text += "@namespace " + prefix + " url(" + ns + ");\n";
+        });
+        text += "@namespace webodfhelper url(" + webodfhelperns + ");\n";
         style.appendChild(document.createTextNode(text));
         head.appendChild(style);
-        return style;
+        return /**@type {!HTMLStyleElement}*/(style);
     }
     /**
+     * This class manages a loaded ODF document that is shown in an element.
+     * It takes care of giving visual feedback on loading, ensures that the
+     * stylesheets are loaded.
      * @constructor
-     * @param {!Element} element Put and ODF Canvas inside this element.
-     * @return {?}
+     * @implements {gui.AnnotatableCanvas}
+     * @param {!HTMLElement} element Put and ODF Canvas inside this element.
      */
     odf.OdfCanvas = function OdfCanvas(element) {
+        runtime.assert((element !== null) && (element !== undefined),
+            "odf.OdfCanvas constructor needs DOM element");
+        runtime.assert((element.ownerDocument !== null) && (element.ownerDocument !== undefined),
+            "odf.OdfCanvas constructor needs DOM");
         var self = this,
-            doc = element.ownerDocument,
-            /**@type{odf.OdfContainer}*/
+            doc = /**@type{!Document}*/(element.ownerDocument),
+            /**@type{!odf.OdfContainer}*/
             odfcontainer,
             /**@type{!odf.Formatting}*/
             formatting = new odf.Formatting(),
-            selectionWatcher = new SelectionWatcher(element),
-            slidecssindex = 0,
+            /**@type{!PageSwitcher}*/
             pageSwitcher,
+            /**@type{HTMLDivElement}*/
+            sizer = null,
+            /**@type{HTMLDivElement}*/
+            annotationsPane = null,
+            allowAnnotations = false,
+            showAnnotationRemoveButton = false,
+            /**@type{gui.AnnotationViewManager}*/
+            annotationViewManager = null,
+            webodfcss,
+            fontcss,
             stylesxmlcss,
+            /**@type{HTMLStyleElement}*/
             positioncss,
-            editable = false,
+            shadowContent,
+            /**@type{number}*/
             zoomLevel = 1,
-            /**@const@type{!Object.<!string,!Array.<!Function>>}*/
+            /**@type{!Object.<string,!Array.<!Function>>}*/
             eventHandlers = {},
-            editparagraph,
+            waitingForDoneTimeoutId,
             loadingQueue = new LoadingQueue();
-
-        addWebODFStyleSheet(doc);
-        pageSwitcher = new PageSwitcher(addStyleSheet(doc));
-        stylesxmlcss = addStyleSheet(doc);
-        positioncss = addStyleSheet(doc);
 
         /**
          * Load all the images that are inside an odf element.
-         * @param {!Object} container
+         * @param {!odf.OdfContainer} container
          * @param {!Element} odffragment
-         * @param {!StyleSheet} stylesheet
+         * @param {!CSSStyleSheet} stylesheet
          * @return {undefined}
          */
         function loadImages(container, odffragment, stylesheet) {
             var i,
                 images,
                 node;
-            // do delayed loading for all the images
+            /**
+             * Do delayed loading for all the images
+             * @param {string} name
+             * @param {!odf.OdfContainer} container
+             * @param {!Element} node
+             * @param {!CSSStyleSheet} stylesheet
+             * @return {undefined}
+             */
             function loadImage(name, container, node, stylesheet) {
                 // load image with a small delay to give the html ui a chance to
                 // update
@@ -825,28 +1005,32 @@ odf.OdfCanvas = (function () {
         }
         /**
          * Load all the video that are inside an odf element.
-         * @param {!Object} container
+         * @param {!odf.OdfContainer} container
          * @param {!Element} odffragment
-         * @param {!StyleSheet} stylesheet
          * @return {undefined}
          */
-        function loadVideos(container, odffragment, stylesheet) {
+        function loadVideos(container, odffragment) {
             var i,
                 plugins,
                 node;
-            // do delayed loading for all the videos
-            function loadVideo(name, container, node, stylesheet) {
+            /**
+             * Do delayed loading for all the videos
+             * @param {!odf.OdfContainer} container
+             * @param {!Element} node
+             * @return {undefined}
+             */
+            function loadVideo(container, node) {
                 // load video with a small delay to give the html ui a chance to
                 // update
                 loadingQueue.addToQueue(function () {
-                    setVideo(name, container, node, stylesheet);
+                    setVideo(container, node);
                 });
             }
             // embedded video is stored in a draw:plugin element
             plugins = odffragment.getElementsByTagNameNS(drawns, 'plugin');
             for (i = 0; i < plugins.length; i += 1) {
                 node = /**@type{!Element}*/(plugins.item(i));
-                loadVideo('video' + String(i), container, node, stylesheet);
+                loadVideo(container, node);
             }
         }
 
@@ -857,8 +1041,10 @@ odf.OdfCanvas = (function () {
          * @return {undefined}
          */
         function addEventListener(eventType, eventHandler) {
-            var handlers = eventHandlers[eventType];
-            if (handlers === undefined) {
+            var handlers;
+            if (eventHandlers.hasOwnProperty(eventType)) {
+                handlers = eventHandlers[eventType];
+            } else {
                 handlers = eventHandlers[eventType] = [];
             }
             if (eventHandler && handlers.indexOf(eventHandler) === -1) {
@@ -880,8 +1066,12 @@ odf.OdfCanvas = (function () {
                 handlers[i].apply(null, args);
             }
         }
+
+        /**
+         * @return {undefined}
+         */
         function fixContainerSize() {
-            var sizer = element.firstChild,
+            var minHeight,
                 odfdoc = sizer.firstChild;
             if (!odfdoc) {
                 return;
@@ -904,54 +1094,130 @@ odf.OdfCanvas = (function () {
                 sizer.style.OTransformOrigin = 'left top';
                 sizer.style.msTransformOrigin = 'left top';
             }
-            
+
             sizer.style.WebkitTransform = 'scale(' + zoomLevel + ')';
             sizer.style.MozTransform = 'scale(' + zoomLevel + ')';
             sizer.style.OTransform = 'scale(' + zoomLevel + ')';
             sizer.style.msTransform = 'scale(' + zoomLevel + ')';
+
+            if (annotationViewManager) {
+                minHeight = annotationViewManager.getMinimumHeightForAnnotationPane();
+                if (minHeight) {
+                    sizer.style.minHeight = minHeight;
+                } else {
+                    sizer.style.removeProperty('min-height');
+                }
+            }
 
             element.style.width = Math.round(zoomLevel * sizer.offsetWidth) + "px";
             element.style.height = Math.round(zoomLevel * sizer.offsetHeight) + "px";
         }
         /**
          * A new content.xml has been loaded. Update the live document with it.
-         * @param {!Object} container
-         * @param {!Element} odfnode
+         * @param {!odf.OdfContainer} container
+         * @param {!odf.ODFDocumentElement} odfnode
          * @return {undefined}
          **/
         function handleContent(container, odfnode) {
-            var css = positioncss.sheet, sizer;
-            modifyImages(container, odfnode.body, css);
-/*
-            slidecssindex = css.insertRule(
-                'office|presentation draw|page:nth-child(1n) {display:block;}',
-                css.cssRules.length
-            );
-*/
-            // FIXME: this is a hack to have a defined background now
-            // should be removed as soon as we have sane background
-            // handling for pages
-            css.insertRule('draw|page { background-color:#fff; }',
-                css.cssRules.length);
-
+            var css = /**@type{!CSSStyleSheet}*/(positioncss.sheet);
             // only append the content at the end
             clear(element);
-            sizer = doc.createElementNS(element.namespaceURI, 'div');
+
+            sizer = /**@type{!HTMLDivElement}*/(doc.createElementNS(element.namespaceURI, 'div'));
             sizer.style.display = "inline-block";
             sizer.style.background = "white";
             sizer.appendChild(odfnode);
             element.appendChild(sizer);
-            modifyTables(container, odfnode.body, css);
-            modifyLinks(container, odfnode.body, css);
+
+            // An annotations pane div. Will only be shown when annotations are enabled
+            annotationsPane = /**@type{!HTMLDivElement}*/(doc.createElementNS(element.namespaceURI, 'div'));
+            annotationsPane.id = "annotationsPane";
+            // A "Shadow Content" div. This will contain stuff like pages
+            // extracted from <style:master-page>. These need to be nicely
+            // styled, so we will populate this in the ODF body first. Once the
+            // styling is handled, it can then be lifted out of the
+            // ODF body and placed beside it, to not pollute the ODF dom.
+            shadowContent = doc.createElementNS(element.namespaceURI, 'div');
+            shadowContent.id = "shadowContent";
+            shadowContent.style.position = 'absolute';
+            shadowContent.style.top = 0;
+            shadowContent.style.left = 0;
+            container.getContentElement().appendChild(shadowContent);
+
+            modifyDrawElements(odfnode.body, css);
+            cloneMasterPages(container, shadowContent, odfnode.body, css);
+            modifyTables(odfnode.body, element.namespaceURI);
+            modifyLineBreakElements(odfnode.body);
+            expandSpaceElements(odfnode.body);
+            expandTabElements(odfnode.body);
             loadImages(container, odfnode.body, css);
-            loadVideos(container, odfnode.body, css);
-            loadLists(container, odfnode.body, css);
+            loadVideos(container, odfnode.body);
+            loadLists(odfnode.body, css, element.namespaceURI);
+
+            sizer.insertBefore(shadowContent, sizer.firstChild);
             fixContainerSize();
         }
+
         /**
+        * Wraps all annotations and renders them using the Annotation View Manager.
+        * @param {!Element} odffragment
+        * @return {undefined}
+        */
+        function modifyAnnotations(odffragment) {
+            var annotationNodes = domUtils.getElementsByTagNameNS(odffragment, officens, 'annotation'),
+                annotationEnds = domUtils.getElementsByTagNameNS(odffragment, officens, 'annotation-end'),
+                currentAnnotationName,
+                i;
+
+            /**
+            * @param {!Element} element
+            * @return {boolean}
+            */
+            function matchAnnotationEnd(element) {
+                return currentAnnotationName === element.getAttributeNS(officens, 'name');
+            }
+
+            for (i = 0; i < annotationNodes.length; i += 1) {
+                currentAnnotationName = annotationNodes[i].getAttributeNS(officens, 'name');
+                annotationViewManager.addAnnotation({
+                    node: annotationNodes[i],
+                    end: annotationEnds.filter(matchAnnotationEnd)[0] || null
+                });
+            }
+
+            annotationViewManager.rerenderAnnotations();
+        }
+
+        /**
+         * This should create an annotations pane if non existent, and then populate it with annotations
+         * If annotations are disallowed, it should remove the pane and all annotations
+         * @param {!odf.ODFDocumentElement} odfnode
+         */
+        function handleAnnotations(odfnode) {
+            if (allowAnnotations) {
+                if (!annotationsPane.parentNode) {
+                    sizer.appendChild(annotationsPane);
+                }
+                if (annotationViewManager) {
+                    annotationViewManager.forgetAnnotations();
+                }
+                annotationViewManager = new gui.AnnotationViewManager(self, odfnode.body, annotationsPane, showAnnotationRemoveButton);
+                modifyAnnotations(odfnode.body);
+                fixContainerSize();
+            } else {
+                if (annotationsPane.parentNode) {
+                    sizer.removeChild(annotationsPane);
+                    annotationViewManager.forgetAnnotations();
+                    fixContainerSize();
+                }
+            }
+        }
+
+        /**
+         * @param {boolean} suppressEvent Suppress the statereadychange event from firing. Used for refreshing the OdtContainer
          * @return {undefined}
          **/
-        function refreshOdf() {
+        function refreshOdf(suppressEvent) {
 
             // synchronize the object a window.odfcontainer with the view
             function callback() {
@@ -961,11 +1227,16 @@ odf.OdfCanvas = (function () {
                 element.ownerDocument.importNode(odfnode, true);
 
                 formatting.setOdfContainer(odfcontainer);
-                handleStyles(odfnode, stylesxmlcss);
+                handleFonts(odfcontainer, fontcss);
+                handleStyles(odfcontainer, formatting, stylesxmlcss);
                 // do content last, because otherwise the document is constantly
                 // updated whenever the css changes
                 handleContent(odfcontainer, odfnode);
-                fireEvent("statereadychange", [odfcontainer]);
+                handleAnnotations(odfnode);
+
+                if (!suppressEvent) {
+                    fireEvent("statereadychange", [odfcontainer]);
+                }
             }
 
             if (odfcontainer.state === odf.OdfContainer.DONE) {
@@ -977,143 +1248,82 @@ odf.OdfCanvas = (function () {
                 // FIXME: use callback registry instead of replacing the onchange
                 runtime.log("WARNING: refreshOdf called but ODF was not DONE.");
 
-                runtime.setTimeout(function later_cb() {
+                waitingForDoneTimeoutId = runtime.setTimeout(function later_cb() {
                     if (odfcontainer.state === odf.OdfContainer.DONE) {
                         callback();
                     } else {
                         runtime.log("will be back later...");
-                        runtime.setTimeout(later_cb, 500);
+                        waitingForDoneTimeoutId = runtime.setTimeout(later_cb, 500);
                     }
                 }, 100);
             }
         }
-        
+
+        /**
+         * Updates the CSS rules to match the ODF document styles and also
+         * updates the size of the canvas to match the new layout.
+         * Needs to be called after changes to the styles of the ODF document.
+         * @return {undefined}
+         */
         this.refreshCSS = function () {
-            handleStyles(odfcontainer.rootElement, stylesxmlcss);
+            handleStyles(odfcontainer, formatting, stylesxmlcss);
+            // different styles means different layout, thus different sizes:
+            fixContainerSize();
         };
+
+        /**
+         * Updates the size of the canvas to the size of the content.
+         * Needs to be called after changes to the content of the ODF document.
+         * @return {undefined}
+         */
+        this.refreshSize = function () {
+            fixContainerSize();
+        };
+        /**
+         * @return {!odf.OdfContainer}
+         */
         this.odfContainer = function () {
             return odfcontainer;
-        };
-        this.slidevisibilitycss = function () {
-            return pageSwitcher.css;
         };
         /**
          * Set a odfcontainer manually.
          * @param {!odf.OdfContainer} container
-         */
-        this.setOdfContainer = function (container) {
-            odfcontainer = container;
-            refreshOdf();
-        };
-        /**
-         * @param {!string} url
+         * @param {boolean=} suppressEvent Default value is false
          * @return {undefined}
          */
-        this["load"] = this.load = function (url) {
+        this.setOdfContainer = function (container, suppressEvent) {
+            odfcontainer = container;
+            refreshOdf(suppressEvent === true);
+        };
+        /**
+         * @param {string} url
+         * @return {undefined}
+         */
+        function load(url) {
             loadingQueue.clearQueue();
-            element.innerHTML = 'loading ' + url;
+            // FIXME: We need to support parametrized strings, because
+            // drop-in word replacements are inadequate for translations;
+            // see http://techbase.kde.org/Development/Tutorials/Localization/i18n_Mistakes#Pitfall_.232:_Word_Puzzles
+            element.innerHTML = runtime.tr('Loading') + ' ' + url + '...';
             element.removeAttribute('style');
             // open the odf container
             odfcontainer = new odf.OdfContainer(url, function (container) {
                 // assignment might be necessary if the callback
                 // fires before the assignment above happens.
                 odfcontainer = container;
-                refreshOdf();
+                refreshOdf(false);
             });
-        };
-
-        function stopEditing() {
-            if (!editparagraph) {
-                return;
-            }
-            var fragment = editparagraph.ownerDocument.createDocumentFragment();
-            while (editparagraph.firstChild) {
-                fragment.insertBefore(editparagraph.firstChild, null);
-            }
-            editparagraph.parentNode.replaceChild(fragment, editparagraph);
         }
+        this["load"] = load;
+        this.load = load;
 
+        /**
+         * @param {function(?string):undefined} callback
+         * @return {undefined}
+         */
         this.save = function (callback) {
-            stopEditing();
             odfcontainer.save(callback);
         };
-
-        function cancelPropagation(event) {
-            if (event.stopPropagation) {
-                event.stopPropagation();
-            } else {
-                event.cancelBubble = true;
-            }
-        }
-
-        function cancelEvent(event) {
-            if (event.preventDefault) {
-                event.preventDefault();
-                event.stopPropagation();
-            } else {
-                event.returnValue = false;
-                event.cancelBubble = true;
-            }
-        }
-
-        this.setEditable = function (iseditable) {
-            editable = iseditable;
-            if (!editable) {
-                stopEditing();
-            }
-        };
-
-        function processClick(evt) {
-            evt = evt || window.event;
-            // go up until we find a text:p, if we find it, wrap it in <p> and
-            // make that editable
-            var e = evt.target, selection = window.getSelection(),
-                range = ((selection.rangeCount > 0)
-                     ? selection.getRangeAt(0) : null),
-                startContainer = range && range.startContainer,
-                startOffset = range && range.startOffset,
-                endContainer = range && range.endContainer,
-                endOffset = range && range.endOffset,
-                doc,
-                ns;
-
-            while (e && !((e.localName === "p" || e.localName === "h") &&
-                    e.namespaceURI === textns)) {
-                e = e.parentNode;
-            }
-            if (!editable) {
-                return;
-            }
-            // test code for enabling editing
-            if (!e || e.parentNode === editparagraph) {
-                return;
-            }
-            doc = e.ownerDocument;
-            ns = doc.documentElement.namespaceURI;
-
-            if (!editparagraph) {
-                editparagraph = doc.createElementNS(ns, "p");
-                editparagraph.style.margin = "0px";
-                editparagraph.style.padding = "0px";
-                editparagraph.style.border = "0px";
-                editparagraph.setAttribute("contenteditable", true);
-            } else if (editparagraph.parentNode) {
-                stopEditing();
-            }
-            e.parentNode.replaceChild(editparagraph, e);
-            editparagraph.appendChild(e);
-
-            // set the cursor or selection at the right position
-            editparagraph.focus(); // needed in FF to show cursor in the paragraph
-            if (range) {
-                selection.removeAllRanges();
-                range = e.ownerDocument.createRange();
-                range.setStart(startContainer, startOffset);
-                range.setEnd(endContainer, endOffset);
-                selection.addRange(range);
-            }
-            cancelEvent(evt);
-        }
 
         /**
          * @param {!string} eventName
@@ -1122,8 +1332,6 @@ odf.OdfCanvas = (function () {
          */
         this.addListener = function (eventName, handler) {
             switch (eventName) {
-            case "selectionchange":
-                selectionWatcher.addListener(eventName, handler); break;
             case "click":
                 listenEvent(element, eventName, handler); break;
             default:
@@ -1137,6 +1345,82 @@ odf.OdfCanvas = (function () {
         this.getFormatting = function () {
             return formatting;
         };
+
+        /**
+         * @return {gui.AnnotationViewManager}
+         */
+        this.getAnnotationViewManager = function () {
+            return annotationViewManager;
+        };
+
+        /**
+         * Unstyles and untracks all annotations present in the document,
+         * and then tracks them again with fresh rendering
+         * @return {undefined}
+         */
+        this.refreshAnnotations = function () {
+            handleAnnotations(odfcontainer.rootElement);
+        };
+
+        /**
+         * Re-renders all annotations if enabled
+         * @return {undefined}
+         */
+        this.rerenderAnnotations = function () {
+            if (annotationViewManager) {
+                annotationViewManager.rerenderAnnotations();
+                fixContainerSize();
+            }
+        };
+
+        /**
+         * This returns the element inside the canvas which can be zoomed with
+         * CSS and which contains the ODF document and the annotation sidebar.
+         * @return {Element}
+         */
+        this.getSizer = function () {
+            return sizer;
+        };
+
+        /** Allows / disallows annotations
+         * @param {!boolean} allow
+         * @param {!boolean} showRemoveButton
+         * @return {undefined}
+         */
+        this.enableAnnotations = function (allow, showRemoveButton) {
+            if (allow !== allowAnnotations) {
+                allowAnnotations = allow;
+                showAnnotationRemoveButton = showRemoveButton;
+                if (odfcontainer) {
+                    handleAnnotations(odfcontainer.rootElement);
+                }
+            }
+        };
+
+        /**
+         * Adds an annotation for the annotaiton manager to track
+         * and wraps and highlights it
+         * @param {!{node:!Element,end:Node}} annotation
+         * @return {undefined}
+         */
+        this.addAnnotation = function (annotation) {
+            if (annotationViewManager) {
+                annotationViewManager.addAnnotation(annotation);
+                fixContainerSize();
+            }
+        };
+
+        /**
+         * Stops annotations and unwraps it
+         * @return {undefined}
+         */
+        this.forgetAnnotations = function () {
+            if (annotationViewManager) {
+                annotationViewManager.forgetAnnotations();
+                fixContainerSize();
+            }
+        };
+
         /**
          * @param {!number} zoom
          * @return {undefined}
@@ -1205,6 +1489,9 @@ odf.OdfCanvas = (function () {
             zoomLevel = height / realHeight;
             fixContainerSize();
         };
+        /**
+         * @return {undefined}
+         */
         this.showFirstPage = function () {
             pageSwitcher.showFirstPage();
         };
@@ -1221,25 +1508,69 @@ odf.OdfCanvas = (function () {
             pageSwitcher.showPreviousPage();
         };
         /**
+         * @param {!number} n  number of the page
          * @return {undefined}
          */
         this.showPage = function (n) {
             pageSwitcher.showPage(n);
-        };
-        /**
-         * @return {undefined}
-         */
-        this.showAllPages = function () {
+            fixContainerSize();
         };
 
+        /**
+         * @return {!HTMLElement}
+         */
         this.getElement = function () {
             return element;
         };
 
-// TODO: where are all these event listeners used? this one gets in the way for SessionController
-// perhaps all the event listening in this class currently could be factored out to another class
-// which then can be created and attached for the current use cases with that event listening?
-//         listenEvent(element, "click", processClick);
+        /**
+         * Add additional css rules for newly inserted draw:frame and draw:image. eg. position, dimensions and background image
+         * @param {!Element} frame
+         */
+        this.addCssForFrameWithImage = function (frame) {
+            // TODO: frameid and imageid generation here is better brought in sync with that for the images on loading of a odf file.
+            var frameName = frame.getAttributeNS(drawns, 'name'),
+                fc = frame.firstElementChild;
+            setDrawElementPosition(frameName, frame,
+                    /**@type{!CSSStyleSheet}*/(positioncss.sheet));
+            if (fc) {
+                setImage(frameName + 'img', odfcontainer, fc,
+                   /**@type{!CSSStyleSheet}*/( positioncss.sheet));
+            }
+        };
+        /**
+         * @param {!function(!Object=)} callback, passing an error object in case of error
+         * @return {undefined}
+         */
+        this.destroy = function(callback) {
+            var head = /**@type{!HTMLHeadElement}*/(doc.getElementsByTagName('head')[0]);
+            runtime.clearTimeout(waitingForDoneTimeoutId);
+            // TODO: anything to clean with annotationViewManager?
+            if (annotationsPane && annotationsPane.parentNode) {
+                annotationsPane.parentNode.removeChild(annotationsPane);
+            }
+            if (sizer) {
+                element.removeChild(sizer);
+                sizer = null;
+            }
+            // remove all styles
+            head.removeChild(webodfcss);
+            head.removeChild(fontcss);
+            head.removeChild(stylesxmlcss);
+            head.removeChild(positioncss);
+
+            // TODO: loadingQueue, make sure it is empty
+            pageSwitcher.destroy(callback);
+        };
+
+        function init() {
+            webodfcss = addWebODFStyleSheet(doc);
+            pageSwitcher = new PageSwitcher(addStyleSheet(doc));
+            fontcss = addStyleSheet(doc);
+            stylesxmlcss = addStyleSheet(doc);
+            positioncss = addStyleSheet(doc);
+        }
+
+        init();
     };
-    return odf.OdfCanvas;
 }());

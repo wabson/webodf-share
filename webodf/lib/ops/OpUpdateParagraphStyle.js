@@ -1,5 +1,6 @@
 /**
- * Copyright (C) 2012 KO GmbH <copyright@kogmbh.com>
+ * @license
+ * Copyright (C) 2012-2013 KO GmbH <copyright@kogmbh.com>
  *
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
@@ -8,6 +9,9 @@
  * the License, or (at your option) any later version.  The code is distributed
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
  *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
@@ -29,32 +33,100 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
 
-/*global ops*/
+/*global runtime, odf, ops*/
+
+runtime.loadClass("odf.Namespaces");
 
 /**
  * @constructor
  * @implements ops.Operation
  */
-ops.OpUpdateParagraphStyle = function OpUpdateParagraphStyle(session) {
+ops.OpUpdateParagraphStyle = function OpUpdateParagraphStyle() {
     "use strict";
 
-    var memberid, timestamp, position, styleName, info;
+    var memberid, timestamp, styleName,
+        /**@type{Object}*/setProperties,
+        /**@type{{attributes}}*/removedProperties,
+        /**@const*/paragraphPropertiesName = 'style:paragraph-properties',
+        /**@const*/textPropertiesName = 'style:text-properties',
+        /**@const*/stylens = odf.Namespaces.stylens;
+
+    /**
+     * Removes attributes of a node by the names listed in removedAttributeNames.
+     * @param {!Node} node
+     * @param {!string} removedAttributeNames
+     */
+    function removedAttributesFromStyleNode(node, removedAttributeNames) {
+        var i, attributeNameParts,
+            attributeNameList = removedAttributeNames ? removedAttributeNames.split(',') : [];
+
+        for (i = 0; i < attributeNameList.length; i += 1) {
+            attributeNameParts = attributeNameList[i].split(":");
+            // TODO: ensure all used prefixes have a namespaces listed
+            node.removeAttributeNS(odf.Namespaces.lookupNamespaceURI(attributeNameParts[0]), attributeNameParts[1]);
+        }
+    }
 
     this.init = function (data) {
         memberid = data.memberid;
         timestamp = data.timestamp;
-        position = data.position;
         styleName = data.styleName;
-        info = data.info;
+        setProperties = data.setProperties;
+        removedProperties = data.removedProperties;
     };
 
-    this.execute = function (domroot) {
-        var odtDocument = session.getOdtDocument();
-        odtDocument.updateParagraphStyle(styleName, info);
-        session.emit(ops.SessionImplementation.signalParagraphStyleModified, styleName);
+    this.isEdit = true;
+
+    this.execute = function (odtDocument) {
+        var formatting = odtDocument.getFormatting(),
+            styleNode,
+            paragraphPropertiesNode, textPropertiesNode;
+
+        if (styleName !== "") {
+            // Common Style
+            styleNode = odtDocument.getParagraphStyleElement(styleName);
+        } else {
+            // Default Style
+            styleNode = formatting.getDefaultStyleElement('paragraph');
+        }
+
+        if (styleNode) {
+            paragraphPropertiesNode = styleNode.getElementsByTagNameNS(stylens, 'paragraph-properties')[0];
+            textPropertiesNode = styleNode.getElementsByTagNameNS(stylens, 'text-properties')[0];
+
+            if (setProperties) {
+                formatting.updateStyle(styleNode, setProperties);
+            }
+
+            // remove attributes in the style nodes
+            if (removedProperties) {
+                if (removedProperties[paragraphPropertiesName]) {
+                    removedAttributesFromStyleNode(paragraphPropertiesNode, removedProperties[paragraphPropertiesName].attributes);
+                    if (paragraphPropertiesNode.attributes.length === 0) {
+                        styleNode.removeChild(paragraphPropertiesNode);
+                    }
+                }
+
+                if (removedProperties[textPropertiesName]) {
+                    // TODO: check if fontname can be removed from font-face-declaration
+                    removedAttributesFromStyleNode(textPropertiesNode, removedProperties[textPropertiesName].attributes);
+                    if (textPropertiesNode.attributes.length === 0) {
+                        styleNode.removeChild(textPropertiesNode);
+                    }
+                }
+
+                removedAttributesFromStyleNode(styleNode, removedProperties.attributes);
+            }
+
+            odtDocument.getOdfCanvas().refreshCSS();
+            odtDocument.emit(ops.OdtDocument.signalParagraphStyleModified, styleName);
+            odtDocument.getOdfCanvas().rerenderAnnotations();
+            return true;
+        }
+        return false;
     };
 
     this.spec = function () {
@@ -62,10 +134,17 @@ ops.OpUpdateParagraphStyle = function OpUpdateParagraphStyle(session) {
             optype: "UpdateParagraphStyle",
             memberid: memberid,
             timestamp: timestamp,
-            position: position,
             styleName: styleName,
-            info: info
+            setProperties: setProperties,
+            removedProperties: removedProperties
         };
     };
-
 };
+/**@typedef{{
+    optype:string,
+    memberid:string,
+    timestamp:number,
+    setProperties:Object,
+    removedProperties:Object
+}}*/
+ops.OpUpdateParagraphStyle.Spec;

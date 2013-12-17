@@ -8,6 +8,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -28,9 +31,9 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
-/*global runtime, xmldom*/
+/*global Node, runtime, xmldom*/
 
 /**
  * RelaxNG can check a DOM tree against a Relax NG schema
@@ -51,9 +54,7 @@ xmldom.RelaxNG2 = function RelaxNG2() {
     "use strict";
     var start,
         validateNonEmptyPattern,
-        nsmap,
-        depth = 0,
-        p = "                                                                ";
+        nsmap;
 
     /**
      * @constructor
@@ -63,7 +64,7 @@ xmldom.RelaxNG2 = function RelaxNG2() {
     function RelaxNGParseError(error, context) {
         this.message = function () {
             if (context) {
-                error += (context.nodeType === 1) ? " Element " : " Node ";
+                error += (context.nodeType === Node.ELEMENT_NODE) ? " Element " : " Node ";
                 error += context.nodeName;
                 if (context.nodeValue) {
                     error += " with value '" + context.nodeValue + "'";
@@ -109,7 +110,7 @@ xmldom.RelaxNG2 = function RelaxNG2() {
      * @return {!boolean}
      */
     function isWhitespace(node) {
-        return node && node.nodeType === 3 && /^\s+$/.test(node.nodeValue);
+        return node && node.nodeType === Node.TEXT_NODE && /^\s+$/.test(node.nodeValue);
     }
     /**
      * @param elementdef
@@ -175,24 +176,21 @@ xmldom.RelaxNG2 = function RelaxNG2() {
      * error occurred, the walker is at the same depth in the dom tree.
      * @param elementdef
      * @param walker
-     * @param {Element} element
      * @return {Array.<RelaxNGParseError>}
      */
-    function validateElement(elementdef, walker, element) {
+    function validateElement(elementdef, walker) {
         if (elementdef.e.length !== 2) {
             throw "Element with wrong # of elements: " + elementdef.e.length;
         }
-        depth += 1;
         // forward until an element is seen, then check the name
         var /**@type{Node}*/ node = walker.currentNode,
             /**@type{number}*/ type = node ? node.nodeType : 0,
             error = null;
         // find the next element, skip text nodes with only whitespace
-        while (type > 1) {
-            if (type !== 8 &&
-                    (type !== 3 ||
-                     !/^\s+$/.test(walker.currentNode.nodeValue))) {// TEXT_NODE
-                depth -= 1;
+        while (type > Node.ELEMENT_NODE) {
+            if (type !== Node.COMMENT_NODE &&
+                    (type !== Node.TEXT_NODE ||
+                     !/^\s+$/.test(walker.currentNode.nodeValue))) {
                 return [new RelaxNGParseError("Not allowed node of type " +
                         type + ".")];
             }
@@ -200,12 +198,10 @@ xmldom.RelaxNG2 = function RelaxNG2() {
             type = node ? node.nodeType : 0;
         }
         if (!node) {
-            depth -= 1;
             return [new RelaxNGParseError("Missing element " +
                     elementdef.names)];
         }
         if (elementdef.names && elementdef.names.indexOf(qName(node)) === -1) {
-            depth -= 1;
             return [new RelaxNGParseError("Found " + node.nodeName +
                     " instead of " + elementdef.names + ".", node)];
         }
@@ -216,20 +212,17 @@ xmldom.RelaxNG2 = function RelaxNG2() {
             // there should be no content left
             while (walker.nextSibling()) {
                 type = walker.currentNode.nodeType;
-                if (!isWhitespace(walker.currentNode) && type !== 8) {
-                    depth -= 1;
+                if (!isWhitespace(walker.currentNode) && type !== Node.COMMENT_NODE) {
                     return [new RelaxNGParseError("Spurious content.",
                             walker.currentNode)];
                 }
             }
             if (walker.parentNode() !== node) {
-                depth -= 1;
                 return [new RelaxNGParseError("Implementation error.")];
             }
         } else {
             error = validateTop(elementdef.e[1], walker, node);
         }
-        depth -= 1;
         // move to the next node
         node = walker.nextSibling();
         return error;
@@ -274,7 +267,7 @@ xmldom.RelaxNG2 = function RelaxNG2() {
     function validateInterleave(elementdef, walker, element) {
         var l = elementdef.e.length, n = [l], err, i, todo = l,
             donethisround, node, subnode, e;
-        // the interleave is done when all items are 'true' and no 
+        // the interleave is done when all items are 'true' and no
         while (todo > 0) {
             donethisround = 0;
             node = walker.currentNode;
@@ -339,6 +332,7 @@ xmldom.RelaxNG2 = function RelaxNG2() {
         return validateNonEmptyPattern(elementdef.e[0], walker, element) ||
             validateNonEmptyPattern(elementdef.e[1], walker, element);
     }
+/*jslint unparam: true*/
     /**
      * @param elementdef
      * @param walker
@@ -347,8 +341,7 @@ xmldom.RelaxNG2 = function RelaxNG2() {
      */
     function validateText(elementdef, walker, element) {
         var /**@type{Node}*/ node = walker.currentNode,
-            /**@type{number}*/ type = node ? node.nodeType : 0,
-            error = null;
+            /**@type{number}*/ type = node ? node.nodeType : 0;
         // find the next element, skip text nodes with only whitespace
         while (node !== element && type !== 3) {
             if (type === 1) {
@@ -362,6 +355,7 @@ xmldom.RelaxNG2 = function RelaxNG2() {
         walker.nextSibling();
         return null;
     }
+/*jslint unparam: false*/
     /**
      * @param elementdef
      * @param walker
@@ -386,7 +380,7 @@ xmldom.RelaxNG2 = function RelaxNG2() {
         } else if (name === "attribute") {
             err = validateAttribute(elementdef, walker, element);
         } else if (name === "element") {
-            err = validateElement(elementdef, walker, element);
+            err = validateElement(elementdef, walker);
         } else if (name === "oneOrMore") {
             err = validateOneOrMore(elementdef, walker, element);
         } else if (name === "choice") {
@@ -408,7 +402,8 @@ xmldom.RelaxNG2 = function RelaxNG2() {
      */
     this.validate = function validate(walker, callback) {
         walker.currentNode = walker.root;
-        var errors = validatePattern(start.e[0], walker, walker.root);
+        var errors = validatePattern(start.e[0], walker,
+                       /**@type{?Element}*/(walker.root));
         callback(errors);
     };
     this.init = function init(start1, nsmap1) {

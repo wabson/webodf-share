@@ -8,6 +8,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -28,21 +31,24 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
 /*global gui*/
 /**
  * @constructor
+ * @param {!Element} parentElement
  */
 gui.EditInfoHandle = function EditInfoHandle(parentElement) {
     "use strict";
 
-    var edits = [],
+    var /**@type{!Array.<{memberid:string,time:Date}>}*/
+        edits = [],
+        /**@type{!HTMLDivElement}*/
         handle,
         document = /**@type{!Document}*/(parentElement.ownerDocument),
         htmlns = document.documentElement.namespaceURI,
         editinfons = 'urn:webodf:names:editinfo';
-    
+
     function renderEdits() {
         var i, infoDiv, colorSpan, authorSpan, timeSpan;
         handle.innerHTML = '';
@@ -70,6 +76,9 @@ gui.EditInfoHandle = function EditInfoHandle(parentElement) {
         }
     }
 
+    /**
+     * @param {!Array.<{memberid:string,time:Date}>} editArray
+     */
     this.setEdits = function (editArray) {
         edits = editArray;
         renderEdits();
@@ -83,10 +92,19 @@ gui.EditInfoHandle = function EditInfoHandle(parentElement) {
         handle.style.display = 'none';
     };
 
+    /**
+     * @param {!function(!Object=)} callback, passing an error object in case of error
+     * @return {undefined}
+     */
+    this.destroy = function (callback) {
+        parentElement.removeChild(handle);
+        callback();
+    };
+
     function init() {
-        handle = document.createElementNS(htmlns, "div");
+        handle = /**@type{!HTMLDivElement}*/(document.createElementNS(htmlns, "div"));
         handle.setAttribute('class', 'editInfoHandle');
-        
+
         handle.style.display = 'none';
         parentElement.appendChild(handle);
     }

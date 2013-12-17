@@ -1,5 +1,6 @@
 /**
- * Copyright (C) 2012 KO GmbH <copyright@kogmbh.com>
+ * @license
+ * Copyright (C) 2012-2013 KO GmbH <copyright@kogmbh.com>
  *
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
@@ -8,6 +9,9 @@
  * the License, or (at your option) any later version.  The code is distributed
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
  *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
@@ -29,7 +33,7 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
 
 /*global ops*/
@@ -38,31 +42,44 @@
  * @constructor
  * @implements ops.Operation
  */
-ops.OpSetParagraphStyle = function OpSetParagraphStyle(session) {
+ops.OpSetParagraphStyle = function OpSetParagraphStyle() {
     "use strict";
 
-    var memberid, timestamp, position, styleNameBefore, styleNameAfter;
+    var memberid, timestamp, position, styleName,
+        textns = "urn:oasis:names:tc:opendocument:xmlns:text:1.0";
 
     this.init = function (data) {
         memberid = data.memberid;
         timestamp = data.timestamp;
         position = data.position;
-        styleNameBefore = data.styleNameBefore;
-        styleNameAfter = data.styleNameAfter;
+        styleName = data.styleName;
     };
 
-    this.execute = function (domroot) {
-        var domPosition, paragraphNode,
-            odtDocument = session.getOdtDocument();
+    this.isEdit = true;
 
-        odtDocument.setParagraphStyle(memberid, timestamp, position, styleNameBefore, styleNameAfter);
+    this.execute = function (odtDocument) {
+        var iterator, paragraphNode;
 
-        // TODO: hack, reusing getPositionInTextNode and getParagraphElement, not an optimized solution
-        domPosition = odtDocument.getPositionInTextNode(position);
-        if (domPosition) {
-            paragraphNode = odtDocument.getParagraphElement(domPosition.textNode);
-            session.emit(ops.SessionImplementation.signalParagraphChanged, paragraphNode);
+        iterator = odtDocument.getIteratorAtPosition(position);
+        paragraphNode = odtDocument.getParagraphElement(iterator.container());
+        if (paragraphNode) {
+            if (styleName !== "") {
+                paragraphNode.setAttributeNS(textns, 'text:style-name', styleName);
+            } else {
+                paragraphNode.removeAttributeNS(textns, 'style-name');
+            }
+
+            odtDocument.getOdfCanvas().refreshSize();
+            odtDocument.emit(ops.OdtDocument.signalParagraphChanged, {
+                paragraphElement: paragraphNode,
+                timeStamp: timestamp,
+                memberId: memberid
+            });
+
+            odtDocument.getOdfCanvas().rerenderAnnotations();
+            return true;
         }
+        return false;
     };
 
     this.spec = function () {
@@ -71,9 +88,15 @@ ops.OpSetParagraphStyle = function OpSetParagraphStyle(session) {
             memberid: memberid,
             timestamp: timestamp,
             position: position,
-            styleNameBefore: styleNameBefore,
-            styleNameAfter: styleNameAfter
+            styleName: styleName
         };
     };
-
 };
+/**@typedef{{
+    optype:string,
+    memberid:string,
+    timestamp:number,
+    position:number,
+    styleName:string
+}}*/
+ops.OpSetParagraphStyle.Spec;

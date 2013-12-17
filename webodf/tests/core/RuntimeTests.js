@@ -8,6 +8,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -28,9 +31,9 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
-/*global core, runtime*/
+/*global core, runtime, Runtime*/
 /*jslint bitwise: true*/
 
 /**
@@ -43,13 +46,13 @@ core.RuntimeTests = function RuntimeTests(runner) {
     var t, r = runner;
 
     function testRead(callback) {
-        runtime.read("tests.html", 27, 6, function (err, data) {
+        runtime.read("utf8.txt", 9, 5, function (err, data) {
             t.err = err;
             r.shouldBeNull(t, "t.err");
             if (data) {
                 t.data = runtime.byteArrayToString(data, "utf8");
             }
-            r.shouldBe(t, "t.data", "'WebODF'");
+            r.shouldBe(t, "t.data", "'world'");
             callback();
         });
     }
@@ -107,6 +110,22 @@ core.RuntimeTests = function RuntimeTests(runner) {
         });
     }
 
+    function testUtf8ByteArrayToString(callback) {
+        runtime.read("utf8.txt", 14, 4, function (err, data) {
+            t.err = err;
+            r.shouldBeNull(t, "t.err");
+            t.data = data;
+            r.shouldBe(t, "t.data.length", "4");
+            if (data) {
+                // we want to test the actual Runtime implementation rather than the nodejs runtime
+                t.data = Runtime.byteArrayToString(data, "utf8");
+            }
+            r.shouldBe(t, "t.data.charCodeAt(0)", "55378");
+            r.shouldBe(t, "t.data.charCodeAt(1)", "57186");
+            callback();
+        });
+    }
+
     function testLoadXML(callback) {
         runtime.loadXML("tests.html", function (err, xml) {
             t.err = err || null;
@@ -128,11 +147,12 @@ core.RuntimeTests = function RuntimeTests(runner) {
         ];
     };
     this.asyncTests = function () {
-        return [
+        return r.name([
             testRead,
             testWrite,
+            testUtf8ByteArrayToString,
             testLoadXML
-        ];
+        ]);
     };
     this.description = function () {
         return "Test the runtime.";

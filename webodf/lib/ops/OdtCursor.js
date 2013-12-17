@@ -8,6 +8,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -28,10 +31,11 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
-/*global core, ops, runtime*/
+/*global core, ops, gui, runtime*/
 runtime.loadClass("core.Cursor");
+runtime.loadClass("gui.SelectionMover");
 
 /**
  * @class
@@ -61,8 +65,11 @@ runtime.loadClass("core.Cursor");
 ops.OdtCursor = function OdtCursor(memberId, odtDocument) {
     "use strict";
     var self = this,
-        /**@type{gui.SelectionMover}*/
+        validSelectionTypes = {},
+        selectionType,
+        /**@type{!gui.SelectionMover}*/
         selectionMover,
+        /**@type{!core.Cursor}*/
         cursor;
 
     /**
@@ -71,24 +78,28 @@ ops.OdtCursor = function OdtCursor(memberId, odtDocument) {
      */
     this.removeFromOdtDocument = function () {
         // TODO: find out if nodeAfterCursor, textNodeIncrease need to be dealt with in any way
-        cursor.remove(function (nodeAfterCursor, textNodeIncrease) {});
+        cursor.remove();
     };
 
     /**
-     * @param {!number} number
+     * Move the cursor the supplied number of positions in either a forward (positive) or backwards (negative) direction
+     * @param {!number} number positions
+     * @param {boolean=} extend true if range is to be expanded from the current
+     *                      point
      * @return {!number}
      */
-    this.move = function (number) {
+    this.move = function (number, extend) {
         var moved = 0;
         if (number > 0) {
-            moved = selectionMover.movePointForward(number);
+            moved = selectionMover.movePointForward(number, extend);
         } else if (number <= 0) {
-            moved = -selectionMover.movePointBackward(-number);
+            moved = -selectionMover.movePointBackward(-number, extend);
         }
         self.handleUpdate();
         return moved;
     };
 
+    /*jslint emptyblock: true*/
     /**
      * Is called whenever the cursor is moved around manually.
      * Set this property to another function that should be called,
@@ -97,6 +108,7 @@ ops.OdtCursor = function OdtCursor(memberId, odtDocument) {
      */
     this.handleUpdate = function () {
     };
+    /*jslint emptyblock: false*/
     this.getStepCounter = function () {
         return selectionMover.getStepCounter();
     };
@@ -109,17 +121,43 @@ ops.OdtCursor = function OdtCursor(memberId, odtDocument) {
     };
     /**
      * Obtain the node representing the cursor.
-     * @return {Element}
+     * @return {!Element}
      */
     this.getNode = function () {
         return cursor.getNode();
     };
     /**
-     * Obtain the selection to which the cursor corresponds.
-     * @return {core.Selection}
+     * Obtain the node representing the selection start point.
+     * If a 0-length range is selected (e.g., by clicking without
+     * dragging),, this will return the exact same node as getNode
+     * @returns {!Element}
      */
-    this.getSelection = function () {
-        return cursor.getSelection();
+    this.getAnchorNode = function () {
+        return cursor.getAnchorNode();
+    };
+    /**
+     * Obtain the currently selected range to which the cursor corresponds.
+     * @return {!Range}
+     */
+    this.getSelectedRange = function () {
+        return cursor.getSelectedRange();
+    };
+    /** Set the given range as the selected range for this cursor
+     * @param {!Range} range,
+     * @param {boolean} isForwardSelection
+     * @return {undefined}
+     */
+    this.setSelectedRange = function (range, isForwardSelection) {
+        cursor.setSelectedRange(range, isForwardSelection);
+        self.handleUpdate();
+    };
+    /**
+     * Returns if the selection of this cursor has the
+     * same direction as the direction of the range
+     * @return {boolean}
+     */
+    this.hasForwardSelection = function () {
+        return cursor.hasForwardSelection();
     };
     /**
      * Obtain the odtDocument to which the cursor corresponds.
@@ -129,16 +167,55 @@ ops.OdtCursor = function OdtCursor(memberId, odtDocument) {
         return odtDocument;
     };
 
+    /**
+     * Gets the current selection type.
+     * @return {!string}
+     */
+    this.getSelectionType = function () {
+        return selectionType;
+    };
+
+    /**
+     * Sets the current selection type to the given value.
+     * @param {!string} value
+     * @return {undefined}
+     */
+    this.setSelectionType = function (value) {
+        if (validSelectionTypes.hasOwnProperty(value)) {
+            selectionType = value;
+        } else {
+            runtime.log("Invalid selection type: " + value);
+        }
+    };
+
+    /**
+     * Reset selection type to default.
+     * @return {undefined}
+     */
+    this.resetSelectionType = function () {
+        self.setSelectionType(ops.OdtCursor.RangeSelection);
+    };
+
     function init() {
-        var distanceToFirstTextNode, selection;
-            selection = new core.Selection(odtDocument.getDOM());
+        cursor = new core.Cursor(odtDocument.getDOM(), memberId);
+        selectionMover = new gui.SelectionMover(cursor, odtDocument.getRootNode());
 
-        cursor = new core.Cursor(selection, odtDocument.getDOM());
-        // mark cursornode with memberid
-        cursor.getNode().setAttributeNS('urn:webodf:names:cursor', "memberId", memberId);
-
-        selectionMover = odtDocument.getSelectionManager().createSelectionMover(cursor);
+        validSelectionTypes[ops.OdtCursor.RangeSelection] = true;
+        validSelectionTypes[ops.OdtCursor.RegionSelection] = true;
+        self.resetSelectionType();
     }
 
     init();
 };
+
+/**@const
+   @type {!string} */
+ops.OdtCursor.RangeSelection = 'Range';
+/**@const
+   @type {!string} */
+ops.OdtCursor.RegionSelection = 'Region';
+
+(function () {
+    "use strict";
+    return ops.OdtCursor;
+}());

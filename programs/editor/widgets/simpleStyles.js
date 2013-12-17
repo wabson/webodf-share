@@ -1,5 +1,6 @@
 /**
- * Copyright (C) 2012 KO GmbH <copyright@kogmbh.com>
+ * @license
+ * Copyright (C) 2012-2013 KO GmbH <copyright@kogmbh.com>
  *
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
@@ -8,6 +9,9 @@
  * the License, or (at your option) any later version.  The code is distributed
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
  *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
@@ -29,125 +33,112 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
-/*global define,require,document */
-define("webodf/editor/widgets/simpleStyles", [], function () {
-    "use strict";
 
-    function makeWidget(editorSession, callback) {
-        require(["dijit/form/ToggleButton"], function (ToggleButton) {
-            var i,
+/*global define,require,gui,ops */
+
+define("webodf/editor/widgets/simpleStyles", [
+    "webodf/editor/widgets/fontPicker",
+    "dijit/form/ToggleButton",
+    "dijit/form/NumberSpinner",
+    "webodf/editor/EditorSession"],
+
+    function (FontPicker, ToggleButton, NumberSpinner, EditorSession) {
+        "use strict";
+
+        var SimpleStyles = function(callback) {
+            var self = this,
+                editorSession,
                 widget = {},
+                directTextStyler,
                 boldButton,
                 italicButton,
                 underlineButton,
-                strikethroughButton;
+                strikethroughButton,
+                fontSizeSpinner,
+                fontPicker,
+                fontPickerWidget;
 
             boldButton = new ToggleButton({
-                label: document.translator('bold'),
+                label: runtime.tr('Bold'),
+                disabled: true,
                 showLabel: false,
                 checked: false,
                 iconClass: "dijitEditorIcon dijitEditorIconBold",
                 onChange: function (checked) {
-                    var currentStyleName = editorSession.getCurrentParagraphStyle();
-                    if (checked) {
-                        editorSession.updateParagraphStyle(currentStyleName, {
-                            textProperties: { fontWeight: 'bold' }
-                        });
-                    } else {
-                        editorSession.updateParagraphStyle(currentStyleName, {
-                            textProperties: { fontWeight: 'normal' }
-                        });
-                    }
+                    directTextStyler.setBold(checked);
+                    self.onToolDone();
                 }
             });
 
             italicButton = new ToggleButton({
-                label: document.translator('italic'),
+                label: runtime.tr('Italic'),
+                disabled: true,
                 showLabel: false,
                 checked: false,
                 iconClass: "dijitEditorIcon dijitEditorIconItalic",
                 onChange: function (checked) {
-                    var currentStyleName = editorSession.getCurrentParagraphStyle();
-                    if (checked) {
-                        editorSession.updateParagraphStyle(currentStyleName, {
-                            textProperties: { fontStyle: 'italic' }
-                        });
-                    } else {
-                        editorSession.updateParagraphStyle(currentStyleName, {
-                            textProperties: { fontStyle: 'normal' }
-                        });
-                    }
+                    directTextStyler.setItalic(checked);
+                    self.onToolDone();
                 }
             });
+
             underlineButton = new ToggleButton({
-                label: document.translator('underline'),
+                label: runtime.tr('Underline'),
+                disabled: true,
                 showLabel: false,
                 checked: false,
                 iconClass: "dijitEditorIcon dijitEditorIconUnderline",
                 onChange: function (checked) {
-                    var currentStyleName = editorSession.getCurrentParagraphStyle();
-                    if (checked) {
-                        editorSession.updateParagraphStyle(currentStyleName, {
-                            textProperties: { underline: 'solid' }
-                        });
-                    } else {
-                        editorSession.updateParagraphStyle(currentStyleName, {
-                            textProperties: { underline: 'none' }
-                        });
-                    }
+                    directTextStyler.setHasUnderline(checked);
+                    self.onToolDone();
                 }
             });
+
             strikethroughButton = new ToggleButton({
-                label: document.translator('strikethrough'),
+                label: runtime.tr('Strikethrough'),
+                disabled: true,
                 showLabel: false,
                 checked: false,
                 iconClass: "dijitEditorIcon dijitEditorIconStrikethrough",
                 onChange: function (checked) {
-                    var currentStyleName = editorSession.getCurrentParagraphStyle();
-                    if (checked) {
-                        editorSession.updateParagraphStyle(currentStyleName, {
-                            textProperties: { strikethrough: 'solid' }
-                        });
-                    } else {
-                        editorSession.updateParagraphStyle(currentStyleName, {
-                            textProperties: { strikethrough: 'none' }
-                        });
-                    }
-                }
-            });
-            
-            function loadStyle(styleName) {
-                var fontWeight, fontStyle, underline, strikethrough, textProperties;
-                textProperties = editorSession.getParagraphStyleAttributes(styleName)['style:text-properties'];
-                
-                fontWeight = textProperties['fo:font-weight'];
-                fontStyle = textProperties['fo:font-style'];
-                underline = textProperties['style:text-underline-style'];
-                strikethrough = textProperties['style:text-line-through-style'];
-
-                boldButton.set('checked', fontWeight === 'bold' ? true : false);
-                italicButton.set('checked', fontStyle === 'italic' ? true : false);
-                underlineButton.set('checked', underline === 'solid' ? true : false);
-                strikethroughButton.set('checked', strikethrough === 'solid' ? true : false);
-            }
-
-            editorSession.subscribe('paragraphChanged', function (info) {
-                var currentStyleName;
-                if (info.type === 'style') {
-                    currentStyleName = editorSession.getCurrentParagraphStyle();
-                    loadStyle(currentStyleName);
-                }
-            });
-            editorSession.subscribe('paragraphStyleModified', function (styleName) {
-                var currentStyleName = editorSession.getCurrentParagraphStyle();
-                if (currentStyleName === styleName) {
-                    loadStyle(currentStyleName);
+                    directTextStyler.setHasStrikethrough(checked);
+                    self.onToolDone();
                 }
             });
 
-            widget.children = [boldButton, italicButton, underlineButton, strikethroughButton];
+            fontSizeSpinner = new NumberSpinner({
+                label: runtime.tr('Size'),
+                disabled: true,
+                showLabel: false,
+                value: 12,
+                smallDelta: 1,
+                constraints: {min:6, max:96},
+                intermediateChanges: true,
+                onChange: function (value) {
+                    directTextStyler.setFontSize(value);
+                },
+                onClick: function () {
+                    self.onToolDone();
+                },
+                onInput: function () {
+                    // Do not process any input in the text box;
+                    // even paste events will not be processed
+                    // so that no corrupt values can exist
+                    return false;
+                }
+            });
+
+            fontPicker = new FontPicker(function () {});
+            fontPickerWidget = fontPicker.widget();
+            fontPickerWidget.setAttribute('disabled', true);
+            fontPickerWidget.onChange = function(value) {
+                directTextStyler.setFontName(value);
+                self.onToolDone();
+            };
+
+            widget.children = [boldButton, italicButton, underlineButton, strikethroughButton, fontPickerWidget, fontSizeSpinner];
             widget.startup = function () {
                 widget.children.forEach(function (element) {
                     element.startup();
@@ -161,13 +152,70 @@ define("webodf/editor/widgets/simpleStyles", [], function () {
                 return widget;
             };
 
-            return callback(widget);
-        });
-    }
+            function updateStyleButtons(changes) {
+                // The 3rd parameter to set(...) is false to avoid firing onChange when setting the value programmatically.
+                var updateCalls = {
+                    isBold: function(value) { boldButton.set('checked', value, false); },
+                    isItalic: function(value) { italicButton.set('checked', value, false); },
+                    hasUnderline: function(value) { underlineButton.set('checked', value, false); },
+                    hasStrikeThrough: function(value) { strikethroughButton.set('checked', value, false); },
+                    fontSize: function(value) { 
+                        fontSizeSpinner.set('intermediateChanges', false); // Necessary due to https://bugs.dojotoolkit.org/ticket/11588
+                        fontSizeSpinner.set('value', value, false);
+                        fontSizeSpinner.set('intermediateChanges', true);
+                    },
+                    fontName: function(value) { fontPickerWidget.set('value', value, false); }
+                };
 
-    return function SimpleStyles(editorSession, callback) {
-        makeWidget(editorSession, function (widget) {
-            return callback(widget);
-        });
-    };
+                Object.keys(changes).forEach(function (key) {
+                    var updateCall = updateCalls[key];
+                    if (updateCall) {
+                        updateCall(changes[key]);
+                    }
+                });
+            }
+
+            function handleCursorMoved(cursor) {
+                var disabled = cursor.getSelectionType() === ops.OdtCursor.RegionSelection;
+                widget.children.forEach(function (element) {
+                    element.setAttribute('disabled', disabled);
+                });
+            }
+
+            this.setEditorSession = function(session) {
+                if (directTextStyler) {
+                    directTextStyler.unsubscribe(gui.DirectTextStyler.textStylingChanged, updateStyleButtons);
+                }
+                directTextStyler = session && session.sessionController.getDirectTextStyler();
+                fontPicker.setEditorSession(session);
+                if (directTextStyler) {
+                    directTextStyler.subscribe(gui.DirectTextStyler.textStylingChanged, updateStyleButtons);
+                }
+                widget.children.forEach(function (element) {
+                    element.setAttribute('disabled', !directTextStyler);
+                });
+                updateStyleButtons({
+                    isBold: directTextStyler ? directTextStyler.isBold() : false,
+                    isItalic: directTextStyler ? directTextStyler.isItalic() : false,
+                    hasUnderline: directTextStyler ? directTextStyler.hasUnderline() : false,
+                    hasStrikeThrough: directTextStyler ? directTextStyler.hasStrikeThrough() : false,
+                    fontSize: directTextStyler ? directTextStyler.fontSize() : undefined,
+                    fontName: directTextStyler ? directTextStyler.fontName() : undefined
+                });
+
+                if (editorSession) {
+                    editorSession.unsubscribe(EditorSession.signalCursorMoved, handleCursorMoved);
+                }
+                editorSession = session;
+                if (editorSession) {
+                    editorSession.subscribe(EditorSession.signalCursorMoved, handleCursorMoved);
+                }
+            };
+
+            this.onToolDone = function () {};
+
+            callback(widget);
+        };
+
+        return SimpleStyles;
 });

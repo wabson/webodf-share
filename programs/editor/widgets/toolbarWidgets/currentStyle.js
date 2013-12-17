@@ -1,5 +1,6 @@
 /**
- * Copyright (C) 2012 KO GmbH <copyright@kogmbh.com>
+ * @license
+ * Copyright (C) 2012-2013 KO GmbH <copyright@kogmbh.com>
  *
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
@@ -8,6 +9,9 @@
  * the License, or (at your option) any later version.  The code is distributed
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
  *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
@@ -29,34 +33,69 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
+
 /*global define, require */
-define("webodf/editor/widgets/toolbarWidgets/currentStyle", [], function () {
+
+define("webodf/editor/widgets/toolbarWidgets/currentStyle",
+       ["webodf/editor/EditorSession"],
+
+  function (EditorSession) {
     "use strict";
-    function makeWidget(editorSession, callback) {
-        require(["webodf/editor/widgets/paragraphStyles"], function (ParagraphStyles) {
-            var paragraphStyles, widget;
 
-            paragraphStyles = new ParagraphStyles(editorSession, function (pStyles) {
-                // if the current paragraph style changes, update the widget 
-                editorSession.subscribe('paragraphChanged', function (info) {
-                    if (info.type === 'style') {
-                        pStyles.widget().set("value", info.styleName);
-                    }
+    return function CurrentStyle(callback) {
+        var self = this,
+            editorSession,
+            paragraphStyles;
+
+        function selectParagraphStyle(info) {
+            if (paragraphStyles) {
+                if (info.type === 'style') {
+                    paragraphStyles.setValue(info.styleName);
+                }
+            }
+        }
+
+        function setParagraphStyle() {
+            if (editorSession) {
+                editorSession.setCurrentParagraphStyle(paragraphStyles.value());
+            }
+            self.onToolDone();
+        }
+
+        function makeWidget(callback) {
+            require(["webodf/editor/widgets/paragraphStyles"], function (ParagraphStyles) {
+                var p;
+
+                p = new ParagraphStyles(function (pStyles) {
+                    paragraphStyles = pStyles;
+
+                    paragraphStyles.widget().onChange = setParagraphStyle;
+
+                    paragraphStyles.setEditorSession(editorSession);
+                    return callback(paragraphStyles.widget());
                 });
-                
-                pStyles.widget().onChange = function (value) {
-                    editorSession.setCurrentParagraphStyle(value);
-                };
-
-                return callback(pStyles.widget());
             });
-        });
-    }
+        }
 
-    return function CurrentStyle(editorSession, callback) {
-        makeWidget(editorSession, function (widget) {
+        this.setEditorSession = function(session) {
+            if (editorSession) {
+                editorSession.unsubscribe(EditorSession.signalParagraphChanged, selectParagraphStyle);
+            }
+            editorSession = session;
+            if (paragraphStyles) {
+                paragraphStyles.setEditorSession(editorSession);
+            }
+            if (editorSession) {
+                editorSession.subscribe(EditorSession.signalParagraphChanged, selectParagraphStyle);
+                // TODO: selectParagraphStyle(editorSession.getCurrentParagraphStyle());
+            }
+        };
+
+        this.onToolDone = function () {};
+
+        makeWidget(function (widget) {
             return callback(widget);
         });
     };

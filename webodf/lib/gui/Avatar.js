@@ -8,6 +8,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -28,7 +31,7 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
 /*global gui*/
 
@@ -38,39 +41,83 @@
  * move around with the parent element.
  * @constructor
  * @param {!Element} parentElement
+ * @param {boolean} avatarInitiallyVisible Sets the initial visibility of the avatar
  */
-gui.Avatar = function Avatar(parentElement) {
+gui.Avatar = function Avatar(parentElement, avatarInitiallyVisible) {
     "use strict";
-    var handle,
+    var self = this,
+        /**@type{!HTMLDivElement}*/
+        handle,
+        /**@type{!HTMLImageElement}*/
         image,
+        pendingImageUrl,
         displayShown = "block",
         displayHidden = "none";
 
+    /**
+     * @param {!string} color
+     */
     this.setColor = function (color) {
-        handle.style.background = color;
+        image.style.borderColor = color;
     };
+    /**
+     * @param {!string} url
+     */
     this.setImageUrl = function (url) {
-        image.src = url;
+        if (self.isVisible()) {
+            image.src = url;
+        } else {
+            // Delay loading of the associated image until the avatar is displayed
+            pendingImageUrl = url;
+        }
     };
+    /**
+     * @return {boolean}
+     */
     this.isVisible = function () {
         return (handle.style.display === displayShown);
     };
+    /**
+     * @return {undefined}
+     */
     this.show = function () {
+        if (pendingImageUrl) {
+            image.src = pendingImageUrl;
+            pendingImageUrl = undefined;
+        }
         handle.style.display = displayShown;
     };
+    /**
+     * @return {undefined}
+     */
     this.hide = function () {
         handle.style.display = displayHidden;
     };
+    /**
+     * @param {boolean} isFocussed
+     * @return {undefined}
+     */
     this.markAsFocussed = function (isFocussed) {
         handle.className = (isFocussed ? "active" : "");
+    };
+
+    /**
+     * @param {!function(!Object=)} callback, passing an error object in case of error
+     * @return {undefined}
+     */
+    this.destroy = function (callback) {
+        parentElement.removeChild(handle);
+        callback();
     };
 
     function init() {
         var document = /**@type{!Document}*/(parentElement.ownerDocument),
             htmlns = document.documentElement.namespaceURI;
 
-        handle = document.createElementNS(htmlns, "div");
-        image = document.createElementNS(htmlns, "img");
+        handle = /**@type{!HTMLDivElement}*/
+                 (document.createElementNS(htmlns, "div"));
+        image = /**@type{!HTMLImageElement}*/
+                (document.createElementNS(htmlns, "img"));
         image.width = 64;
         image.height = 64;
         handle.appendChild(image);
@@ -79,7 +126,7 @@ gui.Avatar = function Avatar(parentElement) {
         handle.style.position = "absolute";
         handle.style.top = '-80px';
         handle.style.left = '-34px'; // TODO: see to automatically calculate this, depending on the style
-        handle.style.display = displayShown;
+        handle.style.display = avatarInitiallyVisible ? displayShown : displayHidden;
         parentElement.appendChild(handle);
     }
 

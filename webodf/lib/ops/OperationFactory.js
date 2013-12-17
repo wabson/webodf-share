@@ -1,6 +1,7 @@
 /**
- * Copyright (C) 2012 KO GmbH <copyright@kogmbh.com>
-
+ * @license
+ * Copyright (C) 2012-2013 KO GmbH <copyright@kogmbh.com>
+ *
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -8,6 +9,9 @@
  * the License, or (at your option) any later version.  The code is distributed
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
  *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
@@ -29,7 +33,7 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
 
 /*global runtime, ops */
@@ -38,53 +42,99 @@
  * create specific operation instances.
  */
 
+runtime.loadClass("ops.OpAddMember");
+runtime.loadClass("ops.OpUpdateMember");
+runtime.loadClass("ops.OpRemoveMember");
 runtime.loadClass("ops.OpAddCursor");
+runtime.loadClass("ops.OpApplyDirectStyling");
 runtime.loadClass("ops.OpRemoveCursor");
 runtime.loadClass("ops.OpMoveCursor");
+runtime.loadClass("ops.OpSetBlob");
+runtime.loadClass("ops.OpRemoveBlob");
+runtime.loadClass("ops.OpInsertImage");
+runtime.loadClass("ops.OpInsertTable");
 runtime.loadClass("ops.OpInsertText");
 runtime.loadClass("ops.OpRemoveText");
 runtime.loadClass("ops.OpSplitParagraph");
 runtime.loadClass("ops.OpSetParagraphStyle");
 runtime.loadClass("ops.OpUpdateParagraphStyle");
-runtime.loadClass("ops.OpCloneStyle");
-runtime.loadClass("ops.OpDeleteStyle");
+runtime.loadClass("ops.OpAddStyle");
+runtime.loadClass("ops.OpRemoveStyle");
+runtime.loadClass("ops.OpAddAnnotation");
+runtime.loadClass("ops.OpRemoveAnnotation");
+runtime.loadClass("ops.OpUpdateMetadata");
+runtime.loadClass("ops.OpApplyHyperlink");
+runtime.loadClass("ops.OpRemoveHyperlink");
 
 /**
  * @constructor
  */
-ops.OperationFactory = function OperationFactory(session) {
+ops.OperationFactory = function OperationFactory() {
     "use strict";
+    var specs;
 
-    var self = this;
+    /**
+     * Registers an operation constructor with this operation factory
+     * @param {!string} specName
+     * @param {!function(Object) : !ops.Operation} specConstructor
+     */
+    this.register = function(specName, specConstructor) {
+        specs[specName] = specConstructor;
+    };
 
+    /**
+     * Create an instance of an operation based on the provided spec
+     * @param {Object} spec
+     * @returns {ops.Operation|null}
+     */
     this.create = function (spec) {
-        var op = null;
-        // TODO: of course the following code can use some better
-        // js language and make it more generic.
-        if (spec.optype === "AddCursor") {
-            op = new ops.OpAddCursor(session);
-        } else if (spec.optype === "InsertText") {
-            op = new ops.OpInsertText(session);
-        } else if (spec.optype === "RemoveText") {
-            op = new ops.OpRemoveText(session);
-        } else if (spec.optype === "SplitParagraph") {
-            op = new ops.OpSplitParagraph(session);
-        } else if (spec.optype === "SetParagraphStyle") {
-            op = new ops.OpSetParagraphStyle(session);
-        } else if (spec.optype === "UpdateParagraphStyle") {
-            op = new ops.OpUpdateParagraphStyle(session);
-        } else if (spec.optype === "CloneStyle") {
-            op = new ops.OpCloneStyle(session);
-        } else if (spec.optype === "DeleteStyle") {
-            op = new ops.OpDeleteStyle(session);
-        } else if (spec.optype === "MoveCursor") {
-            op = new ops.OpMoveCursor(session);
-        } else if (spec.optype === "RemoveCursor") {
-            op = new ops.OpRemoveCursor(session);
-        }
-        if (op) {
+        var op = null,
+            specConstructor = specs[spec.optype];
+        if (specConstructor) {
+            op = specConstructor(spec);
             op.init(spec);
         }
         return op;
     };
+
+    /**
+     * Returns a constructor function for the provided type
+     * @param OperationType Operation type
+     * @returns {Function}
+     */
+    function constructor(OperationType) {
+        return function() {
+            return new OperationType();
+        };
+    }
+
+    function init() {
+        specs = {
+            AddMember: constructor(ops.OpAddMember),
+            UpdateMember: constructor(ops.OpUpdateMember),
+            RemoveMember: constructor(ops.OpRemoveMember),
+            AddCursor : constructor(ops.OpAddCursor),
+            ApplyDirectStyling : constructor(ops.OpApplyDirectStyling),
+            SetBlob : constructor(ops.OpSetBlob),
+            RemoveBlob : constructor(ops.OpRemoveBlob),
+            InsertImage : constructor(ops.OpInsertImage),
+            InsertTable : constructor(ops.OpInsertTable),
+            InsertText : constructor(ops.OpInsertText),
+            RemoveText : constructor(ops.OpRemoveText),
+            SplitParagraph : constructor(ops.OpSplitParagraph),
+            SetParagraphStyle : constructor(ops.OpSetParagraphStyle),
+            UpdateParagraphStyle : constructor(ops.OpUpdateParagraphStyle),
+            AddStyle : constructor(ops.OpAddStyle),
+            RemoveStyle : constructor(ops.OpRemoveStyle),
+            MoveCursor : constructor(ops.OpMoveCursor),
+            RemoveCursor : constructor(ops.OpRemoveCursor),
+            AddAnnotation : constructor(ops.OpAddAnnotation),
+            RemoveAnnotation : constructor(ops.OpRemoveAnnotation),
+            UpdateMetadata: constructor(ops.OpUpdateMetadata),
+            ApplyHyperlink: constructor(ops.OpApplyHyperlink),
+            RemoveHyperlink: constructor(ops.OpRemoveHyperlink)
+        };
+    }
+
+    init();
 };

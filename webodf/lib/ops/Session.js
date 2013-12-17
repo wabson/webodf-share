@@ -1,5 +1,7 @@
 /**
- * Copyright (C) 2012 KO GmbH <jos.van.den.oever@kogmbh.com>
+ * @license
+ * Copyright (C) 2012-2013 KO GmbH <copyright@kogmbh.com>
+ *
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -7,6 +9,9 @@
  * the License, or (at your option) any later version.  The code is distributed
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
  *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
@@ -28,21 +33,125 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
-/*global ops*/
+
+/*global runtime, ops, odf*/
+
+runtime.loadClass("ops.TrivialOperationRouter");
+runtime.loadClass("ops.OperationFactory");
+runtime.loadClass("ops.OdtDocument");
+
 /**
- * An operation that can be performed on a document.
- * @interface
+ * An editing session and what belongs to it.
+ * @constructor
+ * @param {!odf.OdfCanvas} odfCanvas
  */
-ops.Session = function Session() {"use strict"; };
-/**
- * @param {!number} position
- * @return {!boolean}
- */
-ops.Session.prototype.insertParagraph = function (position) {"use strict"; };
-/**
- * @param {!number} position
- * @return {!boolean}
- */
-ops.Session.prototype.removeParagraph = function (position) {"use strict"; };
+ops.Session = function Session(odfCanvas) {
+    "use strict";
+    var self = this,
+        /**@type{!ops.OperationFactory}*/
+        operationFactory = new ops.OperationFactory(),
+        /**@type{!ops.OdtDocument}*/
+        odtDocument = new ops.OdtDocument(odfCanvas),
+        /**@type{?ops.OperationRouter}*/
+        operationRouter = null;
+
+    /**
+     * @param {!ops.OperationFactory} opFactory
+     */
+    this.setOperationFactory = function (opFactory) {
+        operationFactory = opFactory;
+        if (operationRouter) {
+            operationRouter.setOperationFactory(operationFactory);
+        }
+    };
+
+    /**
+     * @param {!ops.OperationRouter} opRouter
+     * @return {undefined}
+     */
+    this.setOperationRouter = function (opRouter) {
+        operationRouter = opRouter;
+        opRouter.setPlaybackFunction(function (op) {
+            if (op.execute(odtDocument)) {
+                odtDocument.emit(ops.OdtDocument.signalOperationExecuted, op);
+                return true;
+            }
+            return false;
+        });
+        opRouter.setOperationFactory(operationFactory);
+    };
+
+    /**
+     * @returns {!ops.OperationFactory}
+     */
+    this.getOperationFactory = function () {
+        return operationFactory;
+    };
+
+    /**
+     * @return {!ops.OdtDocument}
+     */
+    this.getOdtDocument = function () {
+        return odtDocument;
+    };
+
+    /**
+     * Controller sends operations to this method.
+     *
+     * @param {!Array.<!ops.Operation>} ops
+     * @return {undefined}
+     */
+    this.enqueue = function (ops) {
+        operationRouter.push(ops);
+    };
+
+    /**
+     * @param {!function(!Object=)} callback, passing an error object in case of error
+     * @return {undefined}
+     */
+    this.close = function(callback) {
+        operationRouter.close(function(err) {
+            if (err) {
+                callback(err);
+            } else {
+                odtDocument.close(callback);
+            }
+        });
+    };
+
+    /**
+     * @param {!function(!Object=)} callback, passing an error object in case of error
+     * @return {undefined}
+     */
+    this.destroy = function(callback) {
+        /*
+        operationRouter.destroy(function(err) {
+            if (err) {
+                callback(err);
+            } else {
+                memberModel.destroy(function(err) {
+                    if (err) {
+                        callback(err);
+                    } else {
+                        */
+                        odtDocument.destroy(callback);
+                        /*
+                    }
+                });
+            }
+        });
+        */
+    };
+
+    /**
+     * @return {undefined}
+     */
+    function init() {
+        self.setOperationRouter(new ops.TrivialOperationRouter());
+    }
+    init();
+};
+
+// vim:expandtab

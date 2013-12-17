@@ -9,6 +9,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -29,7 +32,7 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
 /*global runtime, core*/
 
@@ -43,32 +46,21 @@
  *
  */
 
-var i, input_file, output_file, keywords=[];
-i = 1;
-input_file = arguments[i]; i+=1;
-output_file = arguments[i]; i+=1;
-
-for (; i+1<arguments.length; i += 2) {
-	keywords.push({
-		from:arguments[i],
-		to:arguments[i+1]
-	});
-}
-runtime.log("filtering ["+input_file+"] to ["+output_file+"]");
-
-runtime.readFile(input_file, "utf-8", function (err, inp_data) {
+function run(input_file, output_file, keywords) {
 	"use strict";
-	var repl_done;
-	if (err) {
-		runtime.log("failed to read input_file \""+input_file+"\":");
+	var repl_done, inp_data;
+    try {
+        inp_data = runtime.readFileSync(input_file, "utf-8");
+    } catch (err) {
+		runtime.log("failed to read input_file \"" + input_file + "\":");
 		runtime.log(err);
 		return;
 	}
 
 	repl_done = [];
-	keywords.forEach(function(trans) {
+	keywords.forEach(function (trans) {
 		if ((trans.from && trans.to)) {
-			runtime.log("replacing \""+trans.from+"\" with contents of ["+trans.to+"].");
+			runtime.log("replacing \"" + trans.from + "\" with contents of [" + trans.to + "].");
 			runtime.readFile(trans.to, "utf-8", function (err, repl_data) {
 				if (err) {
 					runtime.log(err);
@@ -87,9 +79,24 @@ runtime.readFile(input_file, "utf-8", function (err, inp_data) {
 				}
 			});
 		} else {
-			runtime.log("skipping replacement: ["+trans.from+"] / ["+trans.to+"]");
+			runtime.log("skipping replacement: [" + trans.from + "] / [" + trans.to + "]");
 		}
 
 	});
-});
+}
 
+var i, input_file, output_file, keywords = [];
+i = 1;
+input_file = arguments[i];
+i += 1;
+output_file = arguments[i];
+i += 1;
+
+for (; i + 1 < arguments.length; i += 2) {
+	keywords.push({
+		from: arguments[i],
+		to: arguments[i + 1]
+	});
+}
+runtime.log("filtering [" + input_file + "] to [" + output_file + "]");
+run(input_file, output_file, keywords);

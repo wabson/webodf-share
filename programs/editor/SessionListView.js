@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright (C) 2012 KO GmbH <copyright@kogmbh.com>
+ * Copyright (C) 2012-2013 KO GmbH <copyright@kogmbh.com>
  *
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
@@ -9,6 +9,9 @@
  * the License, or (at your option) any later version.  The code is distributed
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
  *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
@@ -30,17 +33,20 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
-/*global define,runtime */
 
-function SessionListView(sessionList, sessionListDiv, cb) {
-        "use strict";
+/*global Node, define, runtime */
+
+define("webodf/editor/SessionListView", [], function () {
+    "use strict";
+
+    return function SessionListView(sessionList, sessionListDiv, cb) {
         var self = this,
             memberDataChangedHandler;
 
         function createSessionDescription(sessionDetails) {
-            return sessionDetails.title + " ("+sessionDetails.cursors.length+" members)";
+            return " ("+sessionDetails.cursors.length+" members) ";
         }
 
         /**
@@ -50,13 +56,26 @@ function SessionListView(sessionList, sessionListDiv, cb) {
             var doc = sessionListDiv.ownerDocument,
                 htmlns = doc.documentElement.namespaceURI,
                 sessionDiv = doc.createElementNS(htmlns, "div"),
-                fullnameTextNode = doc.createTextNode(createSessionDescription(sessionDetails));
+                sessionDescriptionDiv = doc.createElementNS(htmlns, "span"),
+                sessionDownloadDiv;
 
-            sessionDiv.appendChild(fullnameTextNode);
             sessionDiv.sessionId = sessionDetails.id; // TODO: namespace?
-            sessionDiv.onclick = function () {
+            sessionDiv.appendChild(sessionDescriptionDiv);
+            sessionDiv.appendChild(doc.createTextNode(createSessionDescription(sessionDetails)));
+
+            sessionDescriptionDiv.appendChild(doc.createTextNode(sessionDetails.title));
+            sessionDescriptionDiv.style.cursor = "pointer"; // TODO: do not set on each element, use CSS
+            sessionDescriptionDiv.style.fontWeight = "bold";
+            sessionDescriptionDiv.onclick = function () {
                 cb(sessionDetails.id);
             };
+
+            if (sessionDetails.fileUrl) {
+                sessionDownloadDiv = doc.createElementNS(htmlns, "a");
+                sessionDownloadDiv.appendChild(doc.createTextNode("Download"));
+                sessionDownloadDiv.setAttribute("href", sessionDetails.fileUrl);
+                sessionDiv.appendChild(sessionDownloadDiv);
+            }
 
             sessionListDiv.appendChild(sessionDiv);
         }
@@ -65,13 +84,7 @@ function SessionListView(sessionList, sessionListDiv, cb) {
             var node = sessionListDiv.firstChild;
             while (node) {
                 if (node.sessionId === sessionDetails.id) {
-                    node = node.firstChild;
-                    while (node) {
-                        if (node.nodeType == 3) {
-                            node.data = createSessionDescription(sessionDetails);
-                        }
-                        node = node.nextSibling;
-                    }
+                    node.firstChild.nextSibling.data = createSessionDescription(sessionDetails);
                     return;
                 }
                 node = node.nextSibling;
@@ -104,4 +117,5 @@ function SessionListView(sessionList, sessionListDiv, cb) {
         }
 
         init();
-}
+    };
+});

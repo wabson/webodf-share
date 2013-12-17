@@ -9,6 +9,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -29,7 +32,7 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
 /*global runtime, Node, window, DOMParser, core, xmldom, NodeFilter, alert,
    FileReader*/
@@ -176,7 +179,8 @@ function UnpackJob() {
     "use strict";
     this.inputpattern = { file: { path: "", data: { length: 0 } } };
     this.outputpattern  = {
-        file: { entries: [], dom: null }, errors: { unpackErrors: [] }
+        file: { entries: [], dom: null },
+        errors: { unpackErrors: [] }
     };
     function getText(e) {
         var str = "", c = e.firstChild;
@@ -276,11 +280,14 @@ function MimetypeTestJob(odffile) {
             i;
         if (input.file.dom) {
             mime = input.file.dom.documentElement.getAttributeNS(
-                "urn:oasis:names:tc:opendocument:xmlns:office:1.0", "mimetype");
+                "urn:oasis:names:tc:opendocument:xmlns:office:1.0",
+                "mimetype"
+            );
         } else {
             if (e.length < 1 || e[0].filename !== "mimetype") {
                 input.errors.mimetypeErrors.push(
-                        "First file in zip is not 'mimetype'");
+                    "First file in zip is not 'mimetype'"
+                );
             }
             for (i = 0; i < e.length; i += 1) {
                 if (e[i].filename === "mimetype") {
@@ -289,18 +296,20 @@ function MimetypeTestJob(odffile) {
                 }
             }
             if (mime) {
-                altmime = input.file.data.slice(38, 38 + mime.length);
+                altmime = input.file.data.subarray(38, 38 + mime.length);
                 altmime = runtime.byteArrayToString(altmime, "binary");
                 if (mime !== altmime) {
                     input.errors.mimetypeErrors.push(
-                           "mimetype should start at byte 38 in the zip file.");
+                        "mimetype should start at byte 38 in the zip file."
+                    );
                 }
             }
             // compare with mimetype from manifest_xml
             altmime = getManifestMimetype(input.manifest_xml);
             if (altmime !== mime) {
                 input.errors.mimetypeErrors.push(
-                    "manifest.xml has a different mimetype.");
+                    "manifest.xml has a different mimetype."
+                );
             }
         }
         if (!mime) {
@@ -400,7 +409,7 @@ function GetThumbnailJob() {
         for (i = 0; i < e.length; i += 1) {
             if (e[i].filename === "Thumbnails/thumbnail.png") {
                 thumb = "data:image/png;base64," +
-                        base64.convertUTF8ArrayToBase64(e[i].data);
+                    base64.convertUTF8ArrayToBase64(e[i].data);
                 break;
             }
         }
@@ -473,14 +482,13 @@ function RelaxNGJob() {
             if (!relaxng) {
                 return callback();
             }
-            var walker = dom.createTreeWalker(dom.firstChild, 0xFFFFFFFF,
-                    { acceptNode: function(node) {
-                        return NodeFilter.FILTER_ACCEPT; }
-                    }, false),
+            var walker = dom.createTreeWalker(dom.firstChild, 0xFFFFFFFF, {
+                    acceptNode: function (node) {
+                        return NodeFilter.FILTER_ACCEPT;
+                    }
+                }, false),
                 err;
-runtime.log("START VALIDATING");
             err = relaxng.validate(walker, function (err) {
-runtime.log("FINISHED VALIDATING");
                 var i;
                 if (err) {
                     for (i = 0; i < err.length; i += 1) {
@@ -576,12 +584,12 @@ function DataRenderer(parentelement) {
         icon.style.width = "128px";
         icon.style.float = "left";
         icon.style.mozBoxShadow = icon.style.webkitBoxShadow =
-                icon.style.boxShadow = "3px 3px 4px #000";
+            icon.style.boxShadow = "3px 3px 4px #000";
         icon.style.marginRight = icon.style.marginBottom = "10px";
         addParagraph(div, "mimetype: " + data.mimetype);
         addParagraph(div, "version: " + data.version);
         addParagraph(div, "document representation: " +
-                ((data.file.dom) ? "single XML document" :"package"));
+            ((data.file.dom) ? "single XML document" : "package"));
         addErrors(div, data, false);
     }
     function dorender(data) {
@@ -615,7 +623,7 @@ function JobRunner(datarenderer) {
         data,
         busy = false,
         todo = [];
-        
+
     jobtypes.push(new UnpackJob());
     jobtypes.push(new MimetypeTestJob());
     jobtypes.push(new GetThumbnailJob());
@@ -625,7 +633,7 @@ function JobRunner(datarenderer) {
 
     function run() {
         if (busy) {
-           return;
+            return;
         }
         var job = todo.shift();
         if (job) {
@@ -684,7 +692,7 @@ function LoadingFile(file) {
         readRequests = [];
     function load(callback) {
         var reader = new FileReader();
-        reader.onloadend = function(evt) {
+        reader.onloadend = function (evt) {
             data = runtime.byteArrayFromString(evt.target.result, "binary");
             error = evt.target.error && String(evt.target.error);
             var i = 0;
@@ -704,7 +712,7 @@ function LoadingFile(file) {
                 return callback(error);
             }
             if (data) {
-                return callback(error, data.slice(offset, offset + length));
+                return callback(error, data.subarray(offset, offset + length));
             }
             readRequests.push(read);
         }
@@ -743,7 +751,7 @@ function Docnosis(element) {
             loadingfile = new LoadingFile(file);
             openedFiles[path] = loadingfile;
             loadingfile.load(function (error, data) {
-                jobrunnerdata.push({file:{
+                jobrunnerdata.push({file: {
                     path: path,
                     data: data
                 }});
@@ -753,7 +761,7 @@ function Docnosis(element) {
         // process all File objects
         var i, files, div;
         files = (evt.target && evt.target.files) ||
-                (evt.dataTransfer && evt.dataTransfer.files);
+            (evt.dataTransfer && evt.dataTransfer.files);
         if (files) {
             for (i = 0; files && i < files.length; i += 1) {
                 div = doc.createElement("div");

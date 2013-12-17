@@ -1,5 +1,7 @@
 /**
- * Copyright (C) 2012 KO GmbH <jos.van.den.oever@kogmbh.com>
+ * @license
+ * Copyright (C) 2012-2013 KO GmbH <copyright@kogmbh.com>
+ *
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -7,6 +9,9 @@
  * the License, or (at your option) any later version.  The code is distributed
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
  *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
@@ -28,13 +33,42 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
+
 /*global ops*/
+/*jslint emptyblock: true, unparam: true*/
+
 /**
  * An operation that can be performed on a document.
  * @interface
  */
-ops.Operation = function Operation(session) {
+ops.Operation = function Operation() {
     "use strict";
 };
+
+/**
+ * @param {?} data
+ * @return {undefined}
+ */
+ops.Operation.prototype.init = function (data) {"use strict"; };
+
+/**
+ * This is meant to indicate whether
+ * the operation is an 'edit', i.e.
+ * causes any changes that would make
+ * it into the saved ODF.
+ * @type {!boolean}
+ */
+ops.Operation.prototype.isEdit;
+
+/**
+ * @param {!ops.OdtDocument} odtDocument
+ * @return {!boolean}
+ */
+ops.Operation.prototype.execute = function (odtDocument) {"use strict"; };
+
+/**
+ * @return {!{optype,memberid,timestamp}}
+ */
+ops.Operation.prototype.spec = function () {"use strict"; };

@@ -8,6 +8,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -28,11 +31,11 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
 /*global runtime, core, xmldom, odf, XMLSerializer*/
 runtime.loadClass("xmldom.XPath");
-runtime.loadClass("odf.Style2CSS");
+runtime.loadClass("odf.Namespaces");
 
 /**
  * @constructor
@@ -42,37 +45,36 @@ runtime.loadClass("odf.Style2CSS");
 xmldom.XPathTests = function XPathTests(runner) {
     "use strict";
     var r = runner,
-        style2CSS = new odf.Style2CSS(),
         t;
 
     function setupDoc() {
-        var stylens = style2CSS.namespaceResolver("style"),
-            svgns = style2CSS.namespaceResolver("svg"),
-            drawns = style2CSS.namespaceResolver("draw"),
-            presentationns = style2CSS.namespaceResolver("presentation"),
-            textns = style2CSS.namespaceResolver("text"),
+        var stylens = odf.Namespaces.stylens,
+            svgns = odf.Namespaces.svgns,
+            drawns = odf.Namespaces.drawns,
+            presentationns = odf.Namespaces.presentationns,
+            textns = odf.Namespaces.textns,
             doc = runtime.getDOMImplementation().createDocument("", "a", null),
-            r = doc.documentElement,
+            d = doc.documentElement,
             fontFace = doc.createElementNS(stylens, "font-face"),
             fontFaceSrc = doc.createElementNS(svgns, "font-face-src"),
             drawFrame = doc.createElementNS(drawns, "frame"),
             p = doc.createElementNS(textns, "p");
-        r.appendChild(p);
-        r.appendChild(fontFace);
+        d.appendChild(p);
+        d.appendChild(fontFace);
         fontFace = doc.createElementNS(stylens, "font-face");
         fontFace.appendChild(fontFaceSrc);
         fontFaceSrc.setAttributeNS(textns, "anchor-type", "paragraph");
-        r.appendChild(fontFace);
-        r.appendChild(drawFrame);
+        d.appendChild(fontFace);
+        d.appendChild(drawFrame);
         drawFrame = doc.createElementNS(drawns, "frame");
         drawFrame.setAttributeNS(presentationns, "class", "title");
-        r.appendChild(drawFrame);
+        d.appendChild(drawFrame);
 
         t = { doc: doc, fontFace: fontFace, drawFrame: drawFrame };
     }
     function test1() {
         setupDoc();
-        var xpath = new xmldom.XPath(),
+        var xpath = xmldom.XPath,
             xpaths = {
                 "style:font-face[svg:font-face-src]": "t.fontFace",
                 ".//*[*[@text:anchor-type='paragraph']]": "t.fontFace",
@@ -82,7 +84,7 @@ xmldom.XPathTests = function XPathTests(runner) {
         for (x in xpaths) {
             if (xpaths.hasOwnProperty(x)) {
                 t.result = xpath.getODFElementsWithXPath(t.doc.documentElement,
-                        x, style2CSS.namespaceResolver);
+                        x, odf.Namespaces.lookupNamespaceURI);
                 r.shouldBe(t, "t.result.length", "1");
                 r.shouldBe(t, "t.result[0]", xpaths[x]);
             }
@@ -95,11 +97,10 @@ xmldom.XPathTests = function XPathTests(runner) {
         t = {};
     };
     this.tests = function () {
-        return [ test1 ];
+        return r.name([test1]);
     };
     this.asyncTests = function () {
-        return [
-        ];
+        return [];
     };
 };
 xmldom.XPathTests.prototype.description = function () {

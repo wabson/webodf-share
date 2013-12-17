@@ -1,6 +1,7 @@
 /**
- * Copyright (C) 2012 KO GmbH <copyright@kogmbh.com>
-
+ * @license
+ * Copyright (C) 2013 KO GmbH <copyright@kogmbh.com>
+ *
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -8,6 +9,9 @@
  * the License, or (at your option) any later version.  The code is distributed
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
  *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
@@ -29,23 +33,26 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
-/*global runtime,core,define,require,document,dijit */
 
-runtime.loadClass("core.CSSUnits");
+/*global runtime,core,define,require,dijit */
 
 define("webodf/editor/widgets/dialogWidgets/alignmentPane", [], function () {
     "use strict";
-    var AlignmentPane = function (editorSession, callback) {
+
+    runtime.loadClass("core.CSSUnits");
+
+    var AlignmentPane = function (callback) {
         var self = this,
+            editorSession,
             contentPane,
             form;
-        
+
         this.widget = function () {
             return contentPane;
         };
-        
+
         this.value = function () {
             return form.get('value');
         };
@@ -65,7 +72,7 @@ define("webodf/editor/widgets/dialogWidgets/alignmentPane", [], function () {
                 s_rightMargin = parseFloat(cssUnits.convertMeasure(style['fo:margin-right'], 'mm'));
                 s_bottomMargin = parseFloat(cssUnits.convertMeasure(style['fo:margin-bottom'], 'mm'));
                 s_textAlign = style['fo:text-align'];
-                
+
                 form.attr('value', {
                     topMargin: isNaN(s_topMargin) ? 0 : s_topMargin,
                     bottomMargin: isNaN(s_bottomMargin) ? 0 : s_bottomMargin,
@@ -83,18 +90,30 @@ define("webodf/editor/widgets/dialogWidgets/alignmentPane", [], function () {
                 });
             }
         };
-        
+
+        this.setEditorSession = function(session) {
+            editorSession = session;
+        };
+
         function init(cb) {
-            require(["dojo/ready", "dojo/dom-construct", "dijit/layout/ContentPane"], function (ready, domConstruct, ContentPane) {
+            require([
+                "dojo",
+                "dojo/ready",
+                "dojo/dom-construct",
+                "dijit/layout/ContentPane"],
+                function (dojo, ready, domConstruct, ContentPane) {
+                    var editorBase = dojo.config && dojo.config.paths &&
+                            dojo.config.paths['webodf/editor'];
+                runtime.assert(editorBase, "webodf/editor path not defined in dojoConfig");
                 ready(function () {
                     contentPane = new ContentPane({
-                        title: document.translator("alignment"),
-                        href: "widgets/dialogWidgets/alignmentPane.html",
+                        title: runtime.tr("Alignment"),
+                        href: editorBase+"/widgets/dialogWidgets/alignmentPane.html",
                         preload: true
                     });
                     contentPane.onLoad = function () {
                         form = dijit.byId('alignmentPaneForm');
-                        document.translateContent(form.domNode);
+                        runtime.translateContent(form.domNode);
                     };
                     return cb();
                 });
@@ -105,6 +124,6 @@ define("webodf/editor/widgets/dialogWidgets/alignmentPane", [], function () {
             return callback(self);
         });
     };
-    
+
     return AlignmentPane;
 });

@@ -10,6 +10,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -30,7 +33,7 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
 /*global ops*/
 
@@ -44,27 +47,88 @@
 
 /**
  * @constructor
+ * @implements ops.OperationRouter
  */
 ops.TrivialOperationRouter = function TrivialOperationRouter() {
     "use strict";
 
-    var self = this;
+    var operationFactory,
+        playbackFunction;
 
+    /**
+     * Sets the factory to use to create operation instances from operation specs.
+     *
+     * @param {!ops.OperationFactory} f
+     * @return {undefined}
+     */
     this.setOperationFactory = function (f) {
-        self.op_factory = f;
+        operationFactory = f;
     };
 
+    /**
+     * Sets the method which should be called to apply operations.
+     *
+     * @param {!function(!ops.Operation):boolean} playback_func
+     * @return {undefined}
+     */
     this.setPlaybackFunction = function (playback_func) {
-        self.playback_func = playback_func;
+        playbackFunction = playback_func;
     };
 
-    this.push = function (op) {
-        var timedOp,
-            opspec = op.spec();
+    /**
+     * Brings the locally created operations into the game.
+     *
+     * @param {!Array.<!ops.Operation>} operations
+     * @return {undefined}
+     */
+    this.push = function (operations) {
+        operations.forEach(function(op) {
+            var timedOp,
+                opspec = op.spec();
 
-        opspec.timestamp = (new Date()).getTime();
-        timedOp = self.op_factory.create(opspec);
+            opspec.timestamp = (new Date()).getTime();
+            timedOp = operationFactory.create(opspec);
 
-        self.playback_func(timedOp);
+            // TODO: handle return flag in error case
+            playbackFunction(timedOp);
+        });
+    };
+
+    this.close = function (cb) {
+        cb();
+    };
+
+    /**
+     * @param {!string} eventId
+     * @param {!Function} cb
+     * @return {undefined}
+     */
+    /*jslint emptyblock: true, unparam: true*/
+    this.subscribe = function (eventId, cb) {
+    };
+    /*jslint emptyblock: false, unparam: false*/
+
+    /**
+     * @param {!string} eventId
+     * @param {!Function} cb
+     * @return {undefined}
+     */
+    /*jslint emptyblock: true, unparam: true*/
+    this.unsubscribe = function (eventId, cb) {
+    };
+    /*jslint emptyblock: false, unparam: false*/
+
+    /**
+     * @return {!boolean}
+     */
+    this.hasLocalUnsyncedOps = function () {
+        return false;
+    };
+
+    /**
+     * @return {!boolean}
+     */
+    this.hasSessionHostConnection = function () {
+        return true;
     };
 };

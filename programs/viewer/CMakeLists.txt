@@ -8,70 +8,62 @@ set(VIEWER_IMAGES
 	images/toolbarButton-pageUp.png
 	images/toolbarButton-zoomIn.png
 	images/toolbarButton-zoomOut.png
+       images/nlnet.png
+       images/kogmbh.png
 )
 
-set (TOOLS ${CMAKE_CURRENT_SOURCE_DIR}/../../webodf/tools)
+set (TOOLSDIR ${CMAKE_CURRENT_SOURCE_DIR}/../../webodf/tools)
 
 # amalgamation:
-# (write js code into into viewer.html)
-set (VIEWER_MERGED_HTML viewer-amalgamation.html)
+# (write js code into into viewer-amalgamation.html), currently unused
 add_custom_command(
-	OUTPUT ${VIEWER_MERGED_HTML}
-	COMMAND ${NODE} ARGS ${RUNTIME} ${TOOLS}/replaceByFileContents.js
+	OUTPUT viewer-amalgamation.html
+	COMMAND ${NODE} ARGS ${RUNTIME} ${TOOLSDIR}/replaceByFileContents.js
 		${CMAKE_CURRENT_SOURCE_DIR}/index-amalgamation-template.html
-		${VIEWER_MERGED_HTML}
+		viewer-amalgamation.html
 		@VIEWER_JS@ ${CMAKE_CURRENT_SOURCE_DIR}/viewer.js
 		@WEBODF_JS@ ${CMAKE_BINARY_DIR}/webodf/webodf.js
-    DEPENDS NodeJS ${TOOLS}/replaceByFileContents.js
-        webodf.js
-        ${CMAKE_CURRENT_SOURCE_DIR}/index-amalgamation-template.html
+    DEPENDS NodeJS ${TOOLSDIR}/replaceByFileContents.js
+        viewer.js
+        webodf.js-target
+        index-amalgamation-template.html
 )
-
-# create zip file
-set (VIEWER_ZIP ${CMAKE_BINARY_DIR}/viewer-${WEBODF_VERSION}.zip)
-add_custom_command(
-	OUTPUT ${VIEWER_ZIP}
-    
-	COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/images images
-	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/viewer.css viewer.css
-	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/webodf/webodf.js webodf.js
-	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/viewer-minimized.js viewer.js
-	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/index.html index.html
-
-	# zip using javascript code running in node.js
-	COMMAND ${NODE} ARGS ${RUNTIME} ${TOOLS}/zipper.js
-		${VIEWER_ZIP}
-		${VIEWER_IMAGES}
-		index.html
-		# let's not put the amalgamation in zip until it at
-		# least includes css as well...
-		# ${VIEWER_MERGED_HTML}
-		webodf.js
-		viewer.js
-		viewer.css
-
-    DEPENDS NodeJS
-		${TOOLS}/replaceByFileContents.js ${VIEWER_IMAGES}
-        ${CMAKE_BINARY_DIR}/webodf/webodf.js
-		${VIEWER_MERGED_HTML}
-		${CMAKE_CURRENT_SOURCE_DIR}/index.html
-		${CMAKE_CURRENT_SOURCE_DIR}/viewer.css
-		${CMAKE_CURRENT_SOURCE_DIR}/viewer.js
-		${CMAKE_CURRENT_BINARY_DIR}/viewer-minimized.js
-)
-add_custom_target(programs_viewer ALL DEPENDS ${VIEWER_MERGED_HTML} ${VIEWER_ZIP})
+add_custom_target(viewer-amalgamation.html-target DEPENDS viewer-amalgamation.html)
 
 # minimize js code
 add_custom_command(
-	OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/viewer-minimized.js
+	OUTPUT viewer-minimized.js
 	COMMAND ${Java_JAVA_EXECUTABLE}
 	ARGS -jar ${CLOSURE_JAR}
 	${SHARED_CLOSURE_ARGS}
 	--js ${CMAKE_CURRENT_SOURCE_DIR}/viewer.js
 	--compilation_level SIMPLE_OPTIMIZATIONS
 	--js_output_file ${CMAKE_CURRENT_BINARY_DIR}/viewer-minimized.js
-	DEPENDS ClosureCompiler ${CMAKE_CURRENT_SOURCE_DIR}/viewer.js
+	DEPENDS ClosureCompiler viewer.js
 	)
-add_custom_target(viewer-minimized.js)
+add_custom_target(viewer-minimized.js-target DEPENDS viewer-minimized.js)
 
-
+add_custom_command(
+    OUTPUT ${VIEWERBUILDDIR}
+	COMMAND ${CMAKE_COMMAND} -E remove_directory ${VIEWERBUILDDIR}
+	COMMAND ${CMAKE_COMMAND} -E make_directory ${VIEWERBUILDDIR}
+	COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/images ${VIEWERBUILDDIR}/images
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/viewer.css ${VIEWERBUILDDIR}/viewer.css
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/example.local.css ${VIEWERBUILDDIR}/example.local.css
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/../../webodf/webodf.js ${VIEWERBUILDDIR}/webodf.js
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/viewer-minimized.js ${VIEWERBUILDDIR}/viewer.js
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/index.html ${VIEWERBUILDDIR}/index.html
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/ODFViewerPlugin.js ${VIEWERBUILDDIR}/ODFViewerPlugin.js
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/PluginLoader.js ${VIEWERBUILDDIR}/PluginLoader.js
+    COMMAND ${CMAKE_COMMAND} -E copy ${LIBJSLICENSEFILE} ${VIEWERBUILDDIR}
+    DEPENDS
+        ${VIEWER_IMAGES}
+        viewer.css
+        example.local.css
+        index.html
+        PluginLoader.js
+        ODFViewerPlugin.js
+        webodf.js-target
+        viewer-minimized.js-target
+)
+add_custom_target(viewerbuilddir-target DEPENDS ${VIEWERBUILDDIR})

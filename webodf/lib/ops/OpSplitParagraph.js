@@ -1,5 +1,7 @@
 /**
- * Copyright (C) 2012 KO GmbH <copyright@kogmbh.com>
+ * @license
+ * Copyright (C) 2012-2013 KO GmbH <copyright@kogmbh.com>
+ *
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -7,6 +9,9 @@
  * the License, or (at your option) any later version.  The code is distributed
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
  *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
@@ -28,132 +33,149 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
+
 /*jslint nomen: true, evil: true, bitwise: true */
-/*global core, ops, runtime*/
+/*global ops, odf*/
 
 /**
+ * This operation splits the paragraph at the given
+ * position. If the `moveCursor` flag is specified
+ * and is set as true, the cursor is moved to the
+ * beginning of the next paragraph. Otherwise, it
+ * remains in it's original position.
  * @constructor
  * @implements ops.Operation
  */
-ops.OpSplitParagraph = function OpSplitParagraph(session) {
+ops.OpSplitParagraph = function OpSplitParagraph() {
     "use strict";
 
-    var memberid, timestamp, position;
+    var memberid, timestamp, position, moveCursor,
+        odfUtils;
 
     this.init = function (data) {
         memberid = data.memberid;
         timestamp = data.timestamp;
         position = data.position;
+        moveCursor = data.moveCursor === 'true' || data.moveCursor === true;
+        odfUtils = new odf.OdfUtils();
     };
 
-    this.execute = function (rootNode) {
-        var odtDocument = session.getOdtDocument(),
-            domPosition, paragraphNode,
-            textNodeCopy,
-            node, splitNode, splitChildNode, keptChildNode;
+    this.isEdit = true;
 
-        domPosition = odtDocument.getPositionInTextNode(position);
-        if (domPosition) {
-            paragraphNode = odtDocument.getParagraphElement(domPosition.textNode);
-            if (paragraphNode) {
-                // There can be a chain of multiple nodes between the text node
-                // where the split is done and the containing paragraph nodes,
-                // e.g. text:span nodes
-                // So all nodes in this chain need to be split up, i.e. they need
-                // to be cloned, and then the clone and any next siblings have to
-                // be moved to the new paragraph node, which is also cloned from
-                // the current one.
+    this.execute = function (odtDocument) {
+        var domPosition, paragraphNode, targetNode,
+            node, splitNode, splitChildNode, keptChildNode,
+            cursor = odtDocument.getCursor(memberid);
 
-                // start with text node the cursor is in, needs special treatment
-                // if text node is split at the beginning, do not split but simply
-                // move the whole text node
-                if (domPosition.offset === 0) {
-                    keptChildNode = domPosition.textNode.previousSibling;
-                    splitChildNode = null;
-                } else {
-                    // Add special treatment for cursor:
-                    // cursors are keeping a pointer to the textnode to their left,
-                    // for some optimization to reduce the number of textNode creations/deletions.
-                    // As it can happen that we split (part of) the textnode before a cursor,
-                    // (actually that should be often the case due to the cursor-oriented input)
-                    // we have to workaround that optimization. This is done by cloning the textnode
-                    // and removing the old textnode from the DOM and cleaning its data.
-                    if (domPosition.textNode.nextSibling &&
-                        domPosition.textNode.nextSibling.namespaceURI === 'urn:webodf:names:cursor' &&
-                        domPosition.textNode.nextSibling.localName === 'cursor') {
-                        // insert copy of current textnode
-                        textNodeCopy = domPosition.textNode.cloneNode(false);
-                        domPosition.textNode.parentNode.insertBefore(textNodeCopy, domPosition.textNode);
-                        // unset old textnode
-                        domPosition.textNode.parentNode.removeChild(domPosition.textNode);
-                        domPosition.textNode = "";
-                        // and continue normally with the copied text node
-                        domPosition.textNode = textNodeCopy;
-                    }
+        odtDocument.upgradeWhitespacesAtPosition(position);
+        domPosition = odtDocument.getTextNodeAtStep(position);
+        if (!domPosition) {
+            return false;
+        }
 
-                    keptChildNode = domPosition.textNode;
-                    // if text node is to be split at the end, don't split at all
-                    if (domPosition.offset >= domPosition.textNode.length) {
-                        splitChildNode = null;
-                    } else {
-                        // splitText always returns {!Text} here
-                        splitChildNode = /**@type{!Text}*/(
-                            domPosition.textNode.splitText(domPosition.offset)
-                        );
-                    }
-                }
+        paragraphNode = odtDocument.getParagraphElement(domPosition.textNode);
+        if (!paragraphNode) {
+            return false;
+        }
 
-                // then handle all nodes until (incl.) the paragraph node:
-                // create a clone and add as childs the split node of the node below
-                // and any next siblings of it
-                node = domPosition.textNode;
-                while (node !== paragraphNode) {
-                    node = node.parentNode;
+        if (odfUtils.isListItem(paragraphNode.parentNode)) {
+            targetNode = paragraphNode.parentNode;
+        } else {
+            targetNode = paragraphNode;
+        }
 
-                    // split off the node copy
-                    // TODO: handle unique attributes, e.g. xml:id
-                    splitNode = node.cloneNode(false);
-                    // if the existing node will be completely empty,
-                    // just switch roles and insert the empty clone as old node
-                    if (! keptChildNode) {
-                        node.parentNode.insertBefore(splitNode, node);
+        // There can be a chain of multiple nodes between the text node
+        // where the split is done and the containing paragraph nodes,
+        // e.g. text:span nodes
+        // So all nodes in this chain need to be split up, i.e. they need
+        // to be cloned, and then the clone and any next siblings have to
+        // be moved to the new paragraph node, which is also cloned from
+        // the current one.
 
-                        // prepare next level
-                        keptChildNode = splitNode;
-                        splitChildNode = node;
-                    } else {
-                        // add the split child node
-                        if (splitChildNode) {
-                            splitNode.appendChild(splitChildNode);
-                        }
-                        // and move all child nodes behind the split to the node copy,
-                        // by using n.nextSibling as automatically updated queue head
-                        while (keptChildNode.nextSibling) {
-                            splitNode.appendChild(keptChildNode.nextSibling);
-                        }
-                        node.parentNode.insertBefore(splitNode, node.nextSibling);
-
-                        // prepare next level
-                        keptChildNode = node;
-                        splitChildNode = splitNode;
-                    }
-                }
-
-                // mark both paragraphs as edited
-                odtDocument.emit('paragraphEdited', {
-                    element: paragraphNode,
-                    memberId: memberid,
-                    timeStamp: timestamp
-                });
-                odtDocument.emit('paragraphEdited', {
-                    element: splitChildNode,
-                    memberId: memberid,
-                    timeStamp: timestamp
-                });
+        // start with text node the cursor is in, needs special treatment
+        // if text node is split at the beginning, do not split but simply
+        // move the whole text node
+        if (domPosition.offset === 0) {
+            keptChildNode = domPosition.textNode.previousSibling;
+            splitChildNode = null;
+        } else {
+            keptChildNode = domPosition.textNode;
+            // if text node is to be split at the end, don't split at all
+            if (domPosition.offset >= domPosition.textNode.length) {
+                splitChildNode = null;
+            } else {
+                // splitText always returns {!Text} here
+                splitChildNode = /**@type{!Text}*/(
+                    domPosition.textNode.splitText(domPosition.offset)
+                );
             }
         }
+
+        // then handle all nodes until (incl.) the paragraph node:
+        // create a clone and add as childs the split node of the node below
+        // and any next siblings of it
+        node = domPosition.textNode;
+        while (node !== targetNode) {
+            node = node.parentNode;
+
+            // split off the node copy
+            // TODO: handle unique attributes, e.g. xml:id
+            splitNode = node.cloneNode(false);
+            // add the split child node
+            if (splitChildNode) {
+                splitNode.appendChild(splitChildNode);
+            }
+            if (keptChildNode) {
+                // Move all child nodes that should appear after the split to the new node
+                while (keptChildNode && keptChildNode.nextSibling) {
+                    splitNode.appendChild(keptChildNode.nextSibling);
+                }
+            } else {
+                // All children of the original node should be moved after the split
+                while (node.firstChild) {
+                    splitNode.appendChild(node.firstChild);
+                }
+            }
+            node.parentNode.insertBefore(splitNode, node.nextSibling);
+
+            // prepare next level
+            keptChildNode = node;
+            splitChildNode = splitNode;
+        }
+
+        if (odfUtils.isListItem(splitChildNode)) {
+            splitChildNode = splitChildNode.childNodes[0];
+        }
+
+        // clean up any empty text node which was created by odtDocument.getTextNodeAtStep
+        if (domPosition.textNode.length === 0) {
+            domPosition.textNode.parentNode.removeChild(domPosition.textNode);
+        }
+        odtDocument.emit(ops.OdtDocument.signalStepsInserted, {position: position, length: 1});
+
+        if (cursor && moveCursor) {
+            odtDocument.moveCursor(memberid, position + 1, 0);
+            odtDocument.emit(ops.OdtDocument.signalCursorMoved, cursor);
+        }
+
+        odtDocument.fixCursorPositions();
+        odtDocument.getOdfCanvas().refreshSize();
+        // mark both paragraphs as edited
+        odtDocument.emit(ops.OdtDocument.signalParagraphChanged, {
+            paragraphElement: paragraphNode,
+            memberId: memberid,
+            timeStamp: timestamp
+        });
+        odtDocument.emit(ops.OdtDocument.signalParagraphChanged, {
+            paragraphElement: splitChildNode,
+            memberId: memberid,
+            timeStamp: timestamp
+        });
+
+        odtDocument.getOdfCanvas().rerenderAnnotations();
+        return true;
     };
 
     this.spec = function () {
@@ -161,7 +183,15 @@ ops.OpSplitParagraph = function OpSplitParagraph(session) {
             optype: "SplitParagraph",
             memberid: memberid,
             timestamp: timestamp,
-            position: position
+            position: position,
+            moveCursor: moveCursor
         };
     };
 };
+/**@typedef{{
+    optype:string,
+    memberid:string,
+    timestamp:number,
+    position:number
+}}*/
+ops.OpSplitParagraph.Spec;

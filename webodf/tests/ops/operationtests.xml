@@ -1,0 +1,1462 @@
+<tests
+    xmlns:html="http://www.w3.org/1999/xhtml"
+    xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+    xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+    xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"
+    xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+    xmlns:dc="http://purl.org/dc/elements/1.1/"
+    xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
+    xmlns:c="urn:webodf:names:cursor"
+    xmlns:e="urn:webodf:names:editinfo"
+    xmlns:h="urn:webodf:names:helper"
+    xmlns:wo="urn:webodf:names:scope"
+    xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+    xmlns:xlink="http://www.w3.org/1999/xlink"
+    xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0">
+<test name="AddCursor_Simple">
+  <before><office:text><text:p/></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+  </ops>
+  <after><office:text><text:p><c:cursor c:memberId="Joe"/></text:p></office:text></after>
+ </test>
+ <test name="AddCursor_Span">
+  <before><office:text><text:p><text:span/></text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+  </ops>
+  <after><office:text><text:p><c:cursor c:memberId="Joe"/><text:span/></text:p></office:text></after>
+ </test>
+ <test name="AddCursor_Text">
+  <before><office:text><text:p>a</text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+  </ops>
+  <after><office:text><text:p><c:cursor c:memberId="Joe"/>a</text:p></office:text></after>
+ </test>
+ <test name="AddCursor_Space">
+  <before><office:text><text:p> a</text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+  </ops>
+  <after><office:text><text:p> <c:cursor c:memberId="Joe"/>a</text:p></office:text></after>
+ </test>
+ <test name="AddCursor_SpanSpace">
+  <before><office:text><text:p> <text:span> a</text:span></text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+  </ops>
+  <after><office:text><text:p> <text:span> <c:cursor c:memberId="Joe"/>a</text:span></text:p></office:text></after>
+ </test>
+ <test name="AddCursor_JustAfterEdit">
+  <before><office:text><text:p><editinfo /><text:span>a</text:span></text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+  </ops>
+  <after><office:text><text:p><editinfo /><text:span><c:cursor c:memberId="Joe"/>a</text:span></text:p></office:text></after>
+ </test>
+ <test name="AddCursor_NonEmptySpan">
+  <before><office:text><text:p><text:span>a</text:span></text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+  </ops>
+  <after><office:text><text:p><text:span><c:cursor c:memberId="Joe"/>a</text:span></text:p></office:text></after>
+ </test>
+ <test name="AddCursor_NestedSpan">
+  <before><office:text><text:p><text:span><text:span>a</text:span></text:span></text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+  </ops>
+  <after><office:text><text:p><text:span><text:span><c:cursor c:memberId="Joe"/>a</text:span></text:span></text:p></office:text></after>
+ </test>
+ <test name="AddCursor_NestedSpan_JustAfterEdit_Level1">
+  <before><office:text><text:p><editinfo /><text:span><text:span>a</text:span></text:span></text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+  </ops>
+  <after><office:text><text:p><editinfo /><text:span><text:span><c:cursor c:memberId="Joe"/>a</text:span></text:span></text:p></office:text></after>
+ </test>
+ <test name="AddCursor_NestedSpan_JustAfterEdit_Level2">
+  <before><office:text><text:p><text:span><editinfo /><text:span>a</text:span></text:span></text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+  </ops>
+  <after><office:text><text:p><text:span><editinfo /><text:span><c:cursor c:memberId="Joe"/>a</text:span></text:span></text:p></office:text></after>
+ </test>
+<!--
+ <test name="RemoveCursor_Simple">
+  <before><office:text><text:p><c:cursor c:memberId="Joe"/></text:p></office:text></before>
+  <ops>
+   <op optype="RemoveCursor" memberid="Joe"/>
+  </ops>
+  <after><office:text><text:p/></office:text></after>
+ </test>
+-->
+ <test name="AddRemoveCursor_Simple">
+  <before><office:text><text:p/></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+   <op optype="RemoveCursor" memberid="Joe"/>
+  </ops>
+  <after><office:text><text:p/></office:text></after>
+ </test>
+
+ <test name="InsertText_Simple">
+  <before><office:text><text:p/></office:text></before>
+  <ops>
+   <op optype="InsertText" position="0" text="hello"/>
+  </ops>
+  <after><office:text><text:p>hello</text:p></office:text></after>
+ </test>
+ <test name="InsertRemoveText_Simple">
+  <before><office:text><text:p/></office:text></before>
+  <ops>
+   <op optype="InsertText" position="0" text="hello"/>
+   <op optype="RemoveText" position="0" length="5"/>
+  </ops>
+  <after><office:text><text:p/></office:text></after>
+ </test>
+ <test name="InsertText_Simple2">
+  <before><office:text><text:p>a</text:p></office:text></before>
+  <ops>
+   <op optype="InsertText" position="0" text="b"/>
+  </ops>
+  <after><office:text><text:p>ba</text:p></office:text></after>
+ </test>
+ <test name="InsertText_Simple3">
+  <before><office:text><text:p>a</text:p></office:text></before>
+  <ops>
+   <op optype="InsertText" position="1" text="b"/>
+  </ops>
+  <after><office:text><text:p>ab</text:p></office:text></after>
+ </test>
+ <test name="InsertText_OneByOneBeforeExisting">
+  <before><office:text><text:p>T</text:p></office:text></before>
+  <ops>
+   <op optype="InsertText" position="0" text="a"/>
+   <op optype="InsertText" position="1" text="b"/>
+  </ops>
+  <after><office:text><text:p>abT</text:p></office:text></after>
+ </test>
+ <test name="InsertText_Span">
+  <before><office:text><text:p><text:span>a</text:span></text:p></office:text></before>
+  <ops>
+   <op optype="InsertText" position="1" text="b"/>
+  </ops>
+  <after><office:text><text:p><text:span>ab</text:span></text:p></office:text></after>
+ </test>
+ <test name="InsertText_Span2">
+  <before><office:text><text:p><text:span>a</text:span></text:p></office:text></before>
+  <ops>
+   <op optype="InsertText" position="0" text="b"/>
+  </ops>
+  <after><office:text><text:p><text:span>ba</text:span></text:p></office:text></after>
+ </test>
+ <test name="InsertText_BeforeSpace">
+  <before><office:text><text:p><text:s> </text:s></text:p></office:text></before>
+  <ops>
+   <op optype="InsertText" position="0" text="a"/>
+  </ops>
+  <after><office:text><text:p>a<text:s> </text:s></text:p></office:text></after>
+ </test>
+ <test name="InsertText_AfterSpace">
+  <before><office:text><text:p><text:s> </text:s></text:p></office:text></before>
+  <ops>
+   <op optype="InsertText" position="1" text="a"/>
+  </ops>
+  <after><office:text><text:p><text:s> </text:s>a</text:p></office:text></after>
+ </test>
+ <test name="InsertText_AfterSpace2">
+  <before><office:text><text:p>a<text:s> </text:s></text:p></office:text></before>
+  <ops>
+   <op optype="InsertText" position="2" text="b"/>
+  </ops>
+  <after><office:text><text:p>a b</text:p></office:text></after>
+ </test>
+ <test name="InsertText_withSameCursor_AfterSpace2">
+  <before><office:text><text:p>a<text:s> </text:s></text:p><text:p/></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+   <op optype="MoveCursor" memberid="Joe" position="2"/>
+   <op optype="InsertText" memberid="Joe" position="2" text="b"/>
+  </ops>
+  <after><office:text><text:p>a <c:cursor c:memberId="Joe"/>b</text:p><text:p/></office:text></after>
+ </test>
+ <test name="InsertText_withSameCursor_AfterSpace2_moveCursor">
+  <before><office:text><text:p>a<text:s> </text:s></text:p><text:p/></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+   <op optype="MoveCursor" memberid="Joe" position="2"/>
+   <op optype="InsertText" memberid="Joe" position="2" text="b" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p>a b<c:cursor c:memberId="Joe"/></text:p><text:p/></office:text></after>
+ </test>
+ <test name="InsertText_withSameCursor_BeforeSpan_moveCursor">
+  <before><office:text><text:p>a<text:span>b</text:span></text:p><text:p/></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+   <op optype="InsertText" memberid="Joe" position="0" text="c" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p>c<c:cursor c:memberId="Joe"/>a<text:span>b</text:span></text:p><text:p/></office:text></after>
+ </test>
+ <test name="InsertText_withSameCursor_BeforeSpan">
+  <before><office:text><text:p>a<text:span>b</text:span></text:p><text:p/></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+   <op optype="InsertText" memberid="Joe" position="0" text="c"/>
+  </ops>
+  <after><office:text><text:p><c:cursor c:memberId="Joe"/>ca<text:span>b</text:span></text:p><text:p/></office:text></after>
+ </test>
+ <test name="InsertText_withSameCursor_moveCursor">
+  <before><office:text><text:p>a</text:p><text:p/></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+   <op optype="InsertText" memberid="Joe" position="0" text="b" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p>b<c:cursor c:memberId="Joe"/>a</text:p><text:p/></office:text></after>
+ </test>
+ <test name="InsertText_withSameCursor">
+  <before><office:text><text:p>a</text:p><text:p/></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+   <op optype="InsertText" memberid="Joe" position="0" text="b"/>
+  </ops>
+  <after><office:text><text:p><c:cursor c:memberId="Joe"/>ba</text:p><text:p/></office:text></after>
+ </test>
+ <test name="InsertText_withSameCursor2">
+  <before><office:text><text:p>ab c</text:p><text:p/></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+   <op optype="MoveCursor" memberid="Joe" position="1"/>
+   <op optype="InsertText" memberid="Joe" position="1" text="d" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p>ad<c:cursor c:memberId="Joe"/>b c</text:p><text:p/></office:text></after>
+ </test>
+ <test name="InsertText_withOtherCursor_AfterSpace2">
+  <before><office:text><text:p>a<text:s> </text:s></text:p><text:p/></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+   <op optype="MoveCursor" memberid="Joe" position="2"/>
+   <op optype="InsertText" memberid="Alice" position="2" text="b" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p>a <c:cursor c:memberId="Joe"/>b</text:p><text:p/></office:text></after>
+ </test>
+ <test name="InsertText_withOtherCursor_BeforeSpan">
+  <before><office:text><text:p>a<text:span>b</text:span></text:p><text:p/></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+   <op optype="InsertText" memberid="Alice" position="0" text="c" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p><c:cursor c:memberId="Joe"/>ca<text:span>b</text:span></text:p><text:p/></office:text></after>
+ </test>
+ <test name="InsertText_withOtherCursor">
+  <before><office:text><text:p>a</text:p><text:p/></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+   <op optype="InsertText" memberid="Alice" position="0" text="b" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p><c:cursor c:memberId="Joe"/>ba</text:p><text:p/></office:text></after>
+ </test>
+ <test name="InsertText_withOtherCursor2">
+  <before><office:text><text:p>ab c</text:p><text:p/></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+   <op optype="MoveCursor" memberid="Joe" position="1"/>
+   <op optype="InsertText" memberid="Alice" position="1" text="d" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p>a<c:cursor c:memberId="Joe"/>db c</text:p><text:p/></office:text></after>
+ </test>
+ <test name="InsertSpace">
+  <before><office:text><text:p/></office:text></before>
+  <ops>
+   <op optype="InsertText" position="0" text=" " moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p><text:s> </text:s></text:p></office:text></after>
+ </test>
+ <test name="InsertSpace_IntoExistingSpaceBlock">
+  <before><office:text><text:p>a <text:s> </text:s><text:s> </text:s>b</text:p></office:text></before>
+  <ops>
+   <op optype="InsertText" position="2" text=" " moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p>a <text:s> </text:s><text:s> </text:s><text:s> </text:s>b</text:p></office:text></after>
+ </test>
+ <test name="InsertSpaceAndCharacters">
+  <before><office:text><text:p/></office:text></before>
+  <ops>
+   <op optype="InsertText" position="0" text="a" moveCursor="true"/>
+   <op optype="InsertText" position="1" text=" " moveCursor="true"/>
+   <op optype="InsertText" position="2" text="b" moveCursor="true"/>
+   <op optype="InsertText" position="3" text="c" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p>a bc</text:p></office:text></after>
+ </test>
+ <test name="InsertMultipleSpaces">
+  <before><office:text><text:p/></office:text></before>
+  <ops>
+   <op optype="InsertText" position="0" text="a    b" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p>a <text:s> </text:s><text:s> </text:s><text:s> </text:s>b</text:p></office:text></after>
+ </test>
+ <test name="InsertWithTrailingSpace">
+  <before><office:text><text:p/></office:text></before>
+  <ops>
+   <op optype="InsertText" position="0" text="a " moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p>a<text:s> </text:s></text:p></office:text></after>
+ </test>
+ <test name="InsertSpaceAndCharacters2">
+  <before><office:text><text:p/></office:text></before>
+  <ops>
+   <op optype="InsertText" position="0" text="a " moveCursor="true"/>
+   <op optype="InsertText" position="2" text="b" moveCursor="true"/>
+   <op optype="InsertText" position="3" text="c" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p>a bc</text:p></office:text></after>
+ </test>
+ <test name="InsertText_AfterSpaceAndTab_InNewParagraph">
+  <before><office:text><text:p/></office:text></before>
+  <ops>
+   <op optype="SplitParagraph" position="0" moveCursor="true"/>
+   <op optype="InsertText" position="1" text="&#x9;  " moveCursor="true"/>
+   <op optype="SplitParagraph" position="4" moveCursor="true"/>
+   <op optype="InsertText" position="5" text="U" moveCursor="true"/>
+   <op optype="RemoveText" position="0" length="1"/>
+  </ops>
+  <after><office:text><text:p><text:tab>&#x9;</text:tab> <text:s> </text:s></text:p><text:p>U</text:p></office:text></after>
+ </test>
+ <test name="RemoveSpace">
+  <before><office:text><text:p><text:s> </text:s></text:p></office:text></before>
+  <ops>
+   <op optype="RemoveText" position="0" length="1"/>
+  </ops>
+  <after><office:text><text:p/></office:text></after>
+ </test>
+ <test name="AddRemoveSpace">
+  <before><office:text><text:p>ab</text:p></office:text></before>
+  <ops>
+   <op optype="InsertText" position="1" text="  " moveCursor="true"/>
+   <op optype="RemoveText" position="1" length="1"/>
+  </ops>
+  <after><office:text><text:p>a b</text:p></office:text></after>
+ </test>
+ <test name="InsertTab">
+  <before><office:text><text:p/></office:text></before>
+   <ops>
+    <op optype="InsertText" position="0" text="&#x9;" moveCursor="true"/>
+   </ops>
+  <after><office:text><text:p><text:tab>&#09;</text:tab></text:p></office:text></after>
+ </test>
+ <test name="InsertText_TabChars">
+  <before><office:text><text:p/></office:text></before>
+   <ops>
+    <op optype="InsertText" position="0" text="ab&#x9;c" moveCursor="true"/>
+   </ops>
+  <after><office:text><text:p>ab<text:tab>&#09;</text:tab>c</text:p></office:text></after>
+ </test>
+ <test name="InsertText_SingleSpaceChar">
+  <before><office:text><text:p/></office:text></before>
+   <ops>
+    <op optype="InsertText" position="0" text="a bc" moveCursor="true"/>
+   </ops>
+  <after><office:text><text:p>a bc</text:p></office:text></after>
+ </test>
+ <test name="InsertText_TextWithLeadingSpaceAfterSpace">
+  <before><office:text><text:p>a d</text:p></office:text></before>
+   <ops>
+    <op optype="InsertText" position="2" text=" bc" moveCursor="true"/>
+   </ops>
+  <after><office:text><text:p>a <text:s> </text:s>bcd</text:p></office:text></after>
+ </test>
+ <test name="InsertText_TextAfterUnexpandedSpace">
+  <before><office:text><text:p>a d</text:p></office:text></before>
+   <ops>
+    <op optype="InsertText" position="2" text="bc" moveCursor="true"/>
+   </ops>
+  <after><office:text><text:p>a bcd</text:p></office:text></after>
+ </test>
+ <test name="InsertText_TextAfterExpandedSpace">
+  <before><office:text><text:p>a<text:s> </text:s>d</text:p></office:text></before>
+   <ops>
+    <op optype="InsertText" position="2" text="bc" moveCursor="true"/>
+   </ops>
+  <after><office:text><text:p>a bcd</text:p></office:text></after>
+ </test>
+ <test name="InsertText_MultipleSpaceChar">
+  <before><office:text><text:p/></office:text></before>
+   <ops>
+    <op optype="InsertText" position="0" text="a   bc" moveCursor="true"/>
+   </ops>
+  <after><office:text><text:p>a <text:s> </text:s><text:s> </text:s>bc</text:p></office:text></after>
+ </test>
+ <test name="InsertText_DowngradeLeadingSpaces">
+  <before><office:text><text:p>a</text:p></office:text></before>
+   <ops>
+    <op optype="InsertText" position="1" text=" bc" moveCursor="true"/>
+   </ops>
+  <after><office:text><text:p>a bc</text:p></office:text></after>
+ </test>
+ <test name="InsertText_DowngradeTrailingSpaces">
+  <before><office:text><text:p>a <text:s> </text:s>d</text:p></office:text></before>
+   <ops>
+    <op optype="InsertText" position="2" text="bc" moveCursor="true"/>
+   </ops>
+  <after><office:text><text:p>a bc d</text:p></office:text></after>
+ </test>
+ <test name="InsertText_UpgradesTrailingSpace">
+  <before><office:text><text:p>a d</text:p></office:text></before>
+   <ops>
+    <op optype="InsertText" position="1" text="bc " moveCursor="true"/>
+   </ops>
+  <after><office:text><text:p>abc <text:s> </text:s>d</text:p></office:text></after>
+ </test>
+ <test name="RemoveCharacter">
+  <before><office:text><text:p>A</text:p></office:text></before>
+  <ops>
+   <op optype="RemoveText" position="0" length="1"/>
+  </ops>
+  <after><office:text><text:p/></office:text></after>
+ </test>
+ <test name="RemoveCharacter_DowngradesWhiteSpace">
+  <before><office:text><text:p>A <text:s> </text:s>B</text:p></office:text></before>
+  <ops>
+   <op optype="RemoveText" position="1" length="1"/>
+  </ops>
+  <after><office:text><text:p>A B</text:p></office:text></after>
+ </test>
+ <test name="InsertRemoveText_Simple_Backwards">
+  <before><office:text><text:p/></office:text></before>
+  <ops>
+   <op optype="InsertText" position="0" text="ABC" moveCursor="true"/>
+   <op optype="RemoveText" position="1" length="2"/>
+   <op optype="RemoveText" position="0" length="1"/>
+  </ops>
+  <after><office:text><text:p/></office:text></after>
+ </test>
+ <test name="RemoveSpace2">
+  <before><office:text><text:p>a<text:s> </text:s><text:s> </text:s></text:p></office:text></before>
+  <ops>
+   <op optype="RemoveText" position="1" length="1"/>
+  </ops>
+  <after><office:text><text:p>a<text:s> </text:s></text:p></office:text></after>
+ </test>
+ <test name="Remove_characterInSpanCursorBehind">
+  <before><office:text><text:p><text:span>A</text:span></text:p></office:text></before>
+  <ops>
+      <op optype="AddCursor" memberid="Bob"/>
+      <op optype="MoveCursor" memberid="Bob" position="1"/>
+      <op optype="RemoveText" memberid="Bob" position="0" length="1"/>
+  </ops>
+  <after><office:text><text:p><c:cursor c:memberId="Bob"/></text:p></office:text></after>
+ </test>
+ <test name="RemoveText_bridgeSpan_withCursor">
+  <before><office:text><text:p text:style-name="A">ab<text:span>cd</text:span></text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="1" length="2"/>
+   <op optype="RemoveText" position="1" length="2"/>
+  </ops>
+  <after><office:text><text:p text:style-name="A">a<c:cursor c:memberId="Bob"/><text:span>d</text:span></text:p></office:text></after>
+ </test>
+ <test name="Remove_deleteMerge1">
+  <before><office:text><text:p text:style-name="A">abcd</text:p><text:p text:style-name="B">efgh</text:p></office:text></before>
+  <ops>
+   <op optype="RemoveText" position="4" length="1"/>
+  </ops>
+  <after><office:text><text:p text:style-name="A">abcdefgh</text:p></office:text></after>
+ </test>
+ <test name="Remove_deleteMerge2">
+  <before><office:text><text:p text:style-name="A">abc<text:span text:style-name="B">d</text:span></text:p><text:p text:style-name="C"><text:span text:style-name="D">efgh</text:span></text:p></office:text></before>
+  <ops>
+   <op optype="RemoveText" position="2" length="5"/>
+  </ops>
+  <after><office:text><text:p text:style-name="A">ab<text:span text:style-name="D">gh</text:span></text:p></office:text></after>
+ </test>
+ <test name="Remove_deleteMerge_withCursor">
+  <before><office:text><text:p text:style-name="A"><text:span>a</text:span>bcd</text:p><text:p text:style-name="B"><text:span>e</text:span>fgh</text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="2" length="5"/>
+   <op optype="RemoveText" position="2" length="5"/>
+  </ops>
+  <after><office:text><text:p text:style-name="A"><text:span>a</text:span>b<c:cursor c:memberId="Bob"/>gh</text:p></office:text></after>
+ </test>
+ <test name="Remove_deleteOntoFirstLine">
+  <before><office:text><text:p text:style-name="A"><text:span>ab</text:span></text:p><text:p text:style-name="B"><text:span>cde</text:span></text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="RemoveText" position="0" length="1"/>
+   <op optype="RemoveText" position="0" length="1"/>
+   <op optype="RemoveText" position="0" length="1"/>
+  </ops>
+  <after><office:text><text:p text:style-name="B"><text:span><c:cursor c:memberId="Bob"/>cde</text:span></text:p></office:text></after>
+ </test>
+ <test name="Remove_DeleteLastCharacterNearTabs">
+  <before><office:text><text:p><text:span><text:tab>&#09;</text:tab><text:tab>&#09;</text:tab>a</text:span></text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="2"/>
+   <op optype="RemoveText" position="2" length="1"/>
+  </ops>
+  <after><office:text><text:p><text:span><text:tab>&#09;</text:tab><text:tab>&#09;</text:tab><c:cursor c:memberId="Bob"/></text:span></text:p></office:text></after>
+ </test>
+ <test name="Remove_DeleteLastCharacterInSpan">
+  <before><office:text><text:p>a<text:span><e:editinfo e:id="A"/>b</text:span>c</text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="1"/>
+   <op optype="RemoveText" position="1" length="1"/>
+  </ops>
+  <after><office:text><text:p>a<e:editinfo e:id="A"/><c:cursor c:memberId="Bob"/>c</text:p></office:text></after>
+ </test>
+ <test name="Remove_DeleteTabs">
+  <before><office:text><text:p><text:span><text:tab>&#09;</text:tab><text:tab>&#09;</text:tab></text:span></text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="1"/>
+   <op optype="RemoveText" position="1" length="1"/>
+  </ops>
+  <after><office:text><text:p><text:span><text:tab>&#09;</text:tab><c:cursor c:memberId="Bob"/></text:span></text:p></office:text></after>
+ </test>
+ <test name="Remove_DeleteTabs2">
+  <before><office:text><text:p><text:span>a<text:tab>&#09;</text:tab><text:tab>&#09;</text:tab></text:span></text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="2"/>
+   <op optype="RemoveText" position="2" length="1"/>
+  </ops>
+  <after><office:text><text:p><text:span>a<text:tab>&#09;</text:tab><c:cursor c:memberId="Bob"/></text:span></text:p></office:text></after>
+ </test>
+ <test name="Remove_DeleteLineBreak">
+  <before><office:text><text:p><text:span>a<text:line-break/>b</text:span></text:p></office:text></before>
+  <ops>
+   <op optype="RemoveText" position="0" length="2"/>
+  </ops>
+  <after><office:text><text:p><text:span>b</text:span></text:p></office:text></after>
+ </test>
+ <test name="Remove_DeleteImageWithText">
+  <before><office:text><text:p><draw:frame draw:name="graphics1" draw:style-name="fr1" text:anchor-type="as-char" svg:width="5cm" svg:height="6cm"><draw:image xlink:href="Pictures/helloworld.jpg" xlink:type="simple" xlink:actuate="onLoad" xlink:show="embed" /></draw:frame><text:span>hello</text:span></text:p></office:text></before>
+  <ops>
+   <op optype="RemoveText" position="0" length="3"/>
+  </ops>
+  <after><office:text><text:p><text:span>llo</text:span></text:p></office:text></after>
+ </test>
+ <test name="Remove_DeleteImageWithSvgDesc">
+  <before><office:text><text:p><draw:frame draw:name="graphics1" draw:style-name="fr1" text:anchor-type="as-char" svg:width="5cm" svg:height="6cm"><draw:image xlink:href="Pictures/helloworld.jpg" xlink:type="simple" xlink:actuate="onLoad" xlink:show="embed" /><svg:desc>hello world</svg:desc></draw:frame></text:p></office:text></before>
+  <ops>
+   <op optype="RemoveText" position="0" length="1"/>
+  </ops>
+  <after><office:text><text:p/></office:text></after>
+ </test>
+ <test name="Remove_deleteMergeListItem1">
+  <before><office:text><text:list><text:list-item><text:p><text:span>hello</text:span></text:p></text:list-item><text:list-item><text:p><text:span>world</text:span></text:p></text:list-item></text:list></office:text></before>
+   <ops>
+    <op optype="RemoveText" position="5" length="1"/>
+   </ops>
+  <after><office:text><text:list><text:list-item><text:p><text:span>hello</text:span><text:span>world</text:span></text:p></text:list-item></text:list></office:text></after>
+ </test>
+ <test name="Remove_deleteMergeListItem2">
+  <before><office:text><text:list><text:list-item><text:p></text:p><text:list><text:list-item><text:p><text:span>hello</text:span></text:p></text:list-item></text:list></text:list-item></text:list></office:text></before>
+   <ops>
+    <op optype="RemoveText" position="0" length="1"/>
+   </ops>
+  <after><office:text><text:list><text:list-item><text:p><text:span>hello</text:span></text:p></text:list-item></text:list></office:text></after>
+ </test>
+ <test name="Remove_deleteMergeEmpty1">
+  <before><office:text><text:p text:style-name="A"></text:p><text:p text:style-name="B">efgh</text:p></office:text></before>
+  <ops>
+   <op optype="RemoveText" position="0" length="1"/>
+  </ops>
+  <after><office:text><text:p text:style-name="B">efgh</text:p></office:text></after>
+ </test>
+ <test name="Remove_deleteLink1">
+  <before><office:text><text:p><text:a xlink:type="simple" xlink:href="http://www.hello.com"><text:span>Hello</text:span></text:a></text:p></office:text></before>
+  <ops>
+   <op optype="RemoveText" position="0" length="5"/>
+  </ops>
+  <after><office:text><text:p/></office:text></after>
+ </test>
+ <test name="Remove_deleteLink2">
+  <before><office:text><text:p><text:span><text:a xlink:type="simple" xlink:href="http://www.hello.com">Hello</text:a><text:a xlink:type="simple" xlink:href="http://www.world.com">World</text:a></text:span></text:p></office:text></before>
+  <ops>
+   <op optype="RemoveText" position="4" length="6"/>
+  </ops>
+  <after><office:text><text:p><text:span><text:a xlink:type="simple" xlink:href="http://www.hello.com">Hell</text:a></text:span></text:p></office:text></after>
+ </test>
+ <test name="Remove_deleteNearSpace">
+  <before><office:text><text:p>AB</text:p><text:p><text:s> </text:s><text:span>CD</text:span></text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="3"/>
+   <op optype="RemoveText" position="3" length="1"/>
+  </ops>
+  <after><office:text><text:p>AB</text:p><text:p><text:span><c:cursor c:memberId="Bob" />CD</text:span></text:p></office:text></after>
+ </test>
+ <test name="SpaceBetweenParagraphs">
+  <before><office:text><text:p>a</text:p> <text:p>b</text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+   <op optype="MoveCursor" memberid="Joe" position="2"/>
+  </ops>
+  <after><office:text><text:p>a</text:p> <text:p><c:cursor c:memberId="Joe"/>b</text:p></office:text></after>
+ </test>
+ <test name="20130517_split_text_2space">
+  <before><office:text><text:p>20130517_split_text_2space</text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+   <op optype="MoveCursor" memberid="Joe" position="9"/>
+   <op optype="InsertText" memberid="Joe" position="9" text="A" moveCursor="true"/>
+   <op optype="InsertText" memberid="Joe" position="10" text=" " moveCursor="true"/>
+   <op optype="InsertText" memberid="Joe" position="11" text=" " moveCursor="true"/>
+   <op optype="MoveCursor" memberid="Joe" position="11"/>
+   <op optype="MoveCursor" memberid="Joe" position="10"/>
+  </ops>
+  <after><office:text><text:p>20130517_A<c:cursor c:memberId="Joe"/> <text:s> </text:s>split_text_2space</text:p></office:text></after>
+ </test>
+ <test name="20130517_split_text_2space_otherCursor">
+  <before><office:text><text:p>20130517_split_text_2space</text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Joe"/>
+   <op optype="MoveCursor" memberid="Joe" position="9"/>
+   <op optype="InsertText" memberid="Alice" position="9" text="A" moveCursor="true"/>
+   <op optype="InsertText" memberid="Alice" position="10" text=" " moveCursor="true"/>
+   <op optype="InsertText" memberid="Alice" position="11" text=" " moveCursor="true"/>
+   <op optype="MoveCursor" memberid="Joe" position="11"/>
+   <op optype="MoveCursor" memberid="Joe" position="10"/>
+  </ops>
+  <after><office:text><text:p>20130517_A<c:cursor c:memberId="Joe"/> <text:s> </text:s>split_text_2space</text:p></office:text></after>
+ </test>
+ <test name="InsertText_multiCursors">
+  <before><office:text><text:p>abcdefgh</text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Alice"/>
+   <op optype="MoveCursor" memberid="Alice" position="3"/>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="3"/>
+   <op optype="AddCursor" memberid="Eve"/>
+   <op optype="MoveCursor" memberid="Eve" position="3"/>
+   <op optype="InsertText" memberid="Eve" position="3" text="123" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p>abc<c:cursor c:memberId="Alice"/><c:cursor c:memberId="Bob"/>123<c:cursor c:memberId="Eve"/>defgh</text:p></office:text></after>
+ </test>
+ <test name="SplitParagraph_multiCursors">
+  <before><office:text><text:p>abcdefgh</text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Alice"/>
+   <op optype="MoveCursor" memberid="Alice" position="3"/>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="3"/>
+   <op optype="AddCursor" memberid="Eve"/>
+   <op optype="MoveCursor" memberid="Eve" position="3"/>
+   <op optype="SplitParagraph" memberid="Eve" position="3" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p>abc<c:cursor c:memberId="Alice"/><c:cursor c:memberId="Bob"/></text:p><text:p><c:cursor c:memberId="Eve"/>defgh</text:p></office:text></after>
+ </test>
+ <test name="DeleteExposesSpace1">
+  <before><office:text><text:p> a b </text:p></office:text></before>
+  <ops>
+   <op optype="RemoveText" position="0" length="1"/>
+  </ops>
+  <after><office:text><text:p> <text:s> </text:s>b </text:p></office:text></after>
+ </test>
+ <test name="DeleteExposesSpace2">
+  <before><office:text><text:p> a b<text:s> </text:s></text:p></office:text></before>
+  <ops>
+   <op optype="RemoveText" position="2" length="1"/>
+  </ops>
+  <after><office:text><text:p> a<text:s> </text:s><text:s> </text:s></text:p></office:text></after>
+ </test>
+
+ <test name="InsertText_startOfAutomaticStyleSpanAtStartOfParagraph">
+  <!-- text inserted at the position of a start of a span at the start of a paragraph should be added to the span, not before -->
+  <before>
+   <office:automatic-styles><style:style style:name="a" wo:scope="document-content" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style></office:automatic-styles>
+   <office:text><text:p/><text:p><text:span text:style-name="a">ABCD</text:span></text:p></office:text>
+  </before>
+  <ops>
+   <op optype="AddCursor" memberid="Alice"/>
+   <op optype="MoveCursor" memberid="Alice" position="1"/>
+   <op optype="InsertText" memberid="Alice" position="1" text="123" moveCursor="true"/>
+  </ops>
+  <after>
+   <office:automatic-styles><style:style style:name="a" wo:scope="document-content" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style></office:automatic-styles>
+   <office:text><text:p/><text:p><text:span text:style-name="a">123<c:cursor c:memberId="Alice"/>ABCD</text:span></text:p></office:text>
+  </after>
+ </test>
+ <test name="InsertText_startOfAutomaticStyleSpanNotAtStartOfParagraph">
+  <!-- text inserted at the position of a start of a span which is not at the start of a paragraph should be added before the span, not to it -->
+  <before>
+   <office:automatic-styles><style:style style:name="a" wo:scope="document-content" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style></office:automatic-styles>
+   <office:text><text:p/><text:p>A<text:span text:style-name="a">BCD</text:span></text:p></office:text>
+  </before>
+  <ops>
+   <op optype="AddCursor" memberid="Alice"/>
+   <op optype="MoveCursor" memberid="Alice" position="2"/>
+   <op optype="InsertText" memberid="Alice" position="2" text="123" moveCursor="true"/>
+  </ops>
+  <after>
+   <office:automatic-styles><style:style style:name="a" wo:scope="document-content" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style></office:automatic-styles>
+   <office:text><text:p/><text:p>A123<c:cursor c:memberId="Alice"/><text:span text:style-name="a">BCD</text:span></text:p></office:text>
+  </after>
+ </test>
+ <test name="InsertText_endOfAutomaticStyleSpanAtEndOfParagraph">
+  <!-- text inserted at the position of the end of a span which is at the end of a paragraph should be added to the span, not behind it -->
+  <before>
+   <office:automatic-styles><style:style style:name="a" wo:scope="document-content" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style></office:automatic-styles>
+   <office:text><text:p><text:span text:style-name="a">ABCD</text:span></text:p><text:p/></office:text>
+  </before>
+  <ops>
+   <op optype="AddCursor" memberid="Alice"/>
+   <op optype="MoveCursor" memberid="Alice" position="4"/>
+   <op optype="InsertText" memberid="Alice" position="4" text="123" moveCursor="true"/>
+  </ops>
+  <after>
+   <office:automatic-styles><style:style style:name="a" wo:scope="document-content" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style></office:automatic-styles>
+   <office:text><text:p><text:span text:style-name="a">ABCD123<c:cursor c:memberId="Alice"/></text:span></text:p><text:p/></office:text>
+  </after>
+ </test>
+ <test name="InsertText_endOfAutomaticStyleSpanNotAtEndOfParagraph">
+  <!-- also text inserted at the position of the end of a span which is not at the end of a paragraph should be added to the span, not behind it -->
+  <before>
+   <office:automatic-styles><style:style style:name="a" wo:scope="document-content" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style></office:automatic-styles>
+   <office:text><text:p><text:span text:style-name="a">ABC</text:span>D</text:p><text:p/></office:text>
+  </before>
+  <ops>
+   <op optype="AddCursor" memberid="Alice"/>
+   <op optype="MoveCursor" memberid="Alice" position="3"/>
+   <op optype="InsertText" memberid="Alice" position="3" text="123" moveCursor="true"/>
+  </ops>
+  <after>
+   <office:automatic-styles><style:style style:name="a" wo:scope="document-content" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style></office:automatic-styles>
+   <office:text><text:p><text:span text:style-name="a">ABC123<c:cursor c:memberId="Alice"/></text:span>D</text:p><text:p/></office:text>
+  </after>
+ </test>
+
+ <test name="SplitListParagraph_singleCursor">
+  <before><office:text><text:list><text:list-item><text:p>helloworld</text:p></text:list-item></text:list></office:text></before>
+   <ops>
+    <op optype="AddCursor" memberid="Bob"/>
+    <op optype="MoveCursor" memberid="Bob" position="5"/>
+    <op optype="SplitParagraph" memberid="Bob" position="5" moveCursor="true"/>
+   </ops>
+  <after><office:text><text:list><text:list-item><text:p>hello</text:p></text:list-item><text:list-item><text:p><c:cursor c:memberId="Bob"/>world</text:p></text:list-item></text:list></office:text></after>
+ </test>
+ <test name="SplitListParagraph_singleCursor_singleSpan">
+  <before><office:text><text:list><text:list-item><text:p><text:span>helloworld</text:span></text:p></text:list-item></text:list></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="5"/>
+   <op optype="SplitParagraph" memberid="Bob" position="5" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:list><text:list-item><text:p><text:span>hello</text:span></text:p></text:list-item><text:list-item><text:p><text:span><c:cursor c:memberId="Bob"/>world</text:span></text:p></text:list-item></text:list></office:text></after>
+ </test>
+ <test name="SplitListParagraph_singleCursor_nestedSpan">
+  <before><office:text><text:list><text:list-item><text:p><text:span><text:span>helloworld</text:span></text:span></text:p></text:list-item></text:list></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="5"/>
+   <op optype="SplitParagraph" memberid="Bob" position="5" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:list><text:list-item><text:p><text:span><text:span>hello</text:span></text:span></text:p></text:list-item><text:list-item><text:p><text:span><text:span><c:cursor c:memberId="Bob"/>world</text:span></text:span></text:p></text:list-item></text:list></office:text></after>
+ </test>
+ <test name="SplitParagraph_InSpaceBlock">
+  <before><office:text><text:p>hello world</text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="5"/>
+   <op optype="SplitParagraph" memberid="Bob" position="5" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p>hello</text:p><text:p><c:cursor c:memberId="Bob"/><text:s> </text:s>world</text:p></office:text></after>
+ </test>
+ <test name="SplitParagraph_InSpaceBlock_LeadingSpace">
+  <before><office:text><text:p>hello <text:s> </text:s>world</text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="6"/>
+   <op optype="SplitParagraph" memberid="Bob" position="6" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p>hello<text:s> </text:s></text:p><text:p><c:cursor c:memberId="Bob"/><text:s> </text:s>world</text:p></office:text></after>
+ </test>
+ <test name="SplitParagraph_ExtraneousWhiteSpace_DiscardsUnneededSpace">
+  <before><office:text><text:p>hello world</text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="6"/>
+   <op optype="SplitParagraph" memberid="Bob" position="6" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p>hello<text:s> </text:s></text:p><text:p><c:cursor c:memberId="Bob"/>world</text:p></office:text></after>
+ </test>
+ <test name="SplitParagraph_InStyledSpan_PreservesStyling">
+  <before><office:text><text:p>hell<text:span text:style-name="bold">ow</text:span>orld</text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="5"/>
+   <op optype="SplitParagraph" memberid="Bob" position="5" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p>hell<text:span text:style-name="bold">o</text:span></text:p><text:p><text:span text:style-name="bold"><c:cursor c:memberId="Bob"/>w</text:span>orld</text:p></office:text></after>
+ </test>
+ <test name="SplitParagraph_EmptyParagraph">
+  <!-- Reproduces a caching bug caused by the new paragraph being inserted before the existing one -->
+  <before><office:text><text:p>A</text:p><text:p/></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="1"/>
+   <op optype="SplitParagraph" memberid="Bob" position="1" moveCursor="true"/>
+   <op optype="SplitParagraph" memberid="Bob" position="2" moveCursor="true"/>
+   <op optype="MoveCursor" memberid="Bob" position="2"/>
+  </ops>
+  <after><office:text><text:p>A</text:p><text:p><c:cursor c:memberId="Bob"/></text:p><text:p/><text:p/></office:text></after>
+ </test>
+ <test name="SplitParagraph_SplitAtStartOfParagraph">
+  <!-- Reproduces a caching bug caused by the new paragraph being inserted before the existing one -->
+  <before><office:text><text:p>A</text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="SplitParagraph" memberid="Bob" position="0" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p/><text:p><c:cursor c:memberId="Bob"/>A</text:p></office:text></after>
+ </test>
+ <test name="DeleteSpaceInSpanCursorBefore">
+  <before><office:text><text:p>A</text:p><text:p><text:span><text:s> </text:s></text:span></text:p><text:p><text:span>B</text:span></text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="5"/>
+   <op optype="RemoveText" position="0" length="5"/>
+  </ops>
+  <after><office:text><text:p><c:cursor c:memberId="Bob"/></text:p></office:text></after>
+ </test>
+ <test name="DeleteSpaceInSpanCursorBehind">
+  <before><office:text><text:p>A</text:p><text:p><text:span><text:s> </text:s></text:span></text:p><text:p><text:span>B</text:span></text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="RemoveText" position="0" length="5"/>
+  </ops>
+  <after><office:text><text:p><c:cursor c:memberId="Bob"/></text:p></office:text></after>
+ </test>
+
+ <test name="AddStyle_firstStyle">
+  <before>
+   <office:styles/>
+   <office:text><text:p/></office:text>
+  </before>
+  <ops>
+   <op optype="AddStyle" memberid="Alice" styleName="S" styleFamily="paragraph" isAutomaticStyle="false">
+    <setProperties style:class="text"/>
+   </op>
+  </ops>
+  <after>
+   <office:styles><style:style style:name="S" style:family="paragraph" style:class="text"/></office:styles>
+   <office:text><text:p/></office:text>
+  </after>
+ </test>
+ <test name="AddStyle_secondStyle">
+  <before>
+   <office:styles><style:style style:name="S1" style:family="paragraph" style:class="text"/></office:styles>
+   <office:text><text:p/></office:text>
+  </before>
+  <ops>
+   <op optype="AddStyle" memberid="Alice" styleName="S2" styleFamily="paragraph" isAutomaticStyle="false">
+    <setProperties style:class="text" style:display-name="Style2" style:parent-style-name="S1" style:next-style-name="S1"><style:paragraph-properties fo:margin-right="4mm"/></setProperties>
+   </op>
+  </ops>
+  <after>
+   <office:styles><style:style style:name="S1" style:family="paragraph" style:class="text"/><style:style style:name="S2" style:display-name="Style2" style:family="paragraph" style:class="text" style:parent-style-name="S1" style:next-style-name="S1"><style:paragraph-properties fo:margin-right="4mm"/></style:style></office:styles>
+   <office:text><text:p/></office:text>
+  </after>
+ </test>
+ <test name="AddStyle_automaticStyle">
+  <before>
+   <office:automatic-styles/>
+   <office:text><text:p/></office:text>
+  </before>
+  <ops>
+   <op optype="AddStyle" memberid="Alice" styleName="S" styleFamily="graphic" isAutomaticStyle="true">
+    <setProperties style:parent-style-name="Graphics"/>
+   </op>
+  </ops>
+  <after>
+   <office:automatic-styles><style:style style:name="S" style:family="graphic" style:parent-style-name="Graphics"/></office:automatic-styles>
+   <office:text><text:p/></office:text>
+  </after>
+ </test>
+ <test name="RemoveStyle">
+  <before>
+   <office:styles><style:style style:name="S" style:family="paragraph" style:class="text"/></office:styles>
+   <office:text><text:p/></office:text>
+  </before>
+  <ops>
+   <op optype="RemoveStyle" memberid="Alice" styleName="S" styleFamily="paragraph"/>
+  </ops>
+  <after>
+   <office:styles/>
+   <office:text><text:p/></office:text>
+  </after>
+ </test>
+
+ <test name="UpdateParagraphStyle_nothing_fontSize">
+  <before>
+    <office:styles><style:style style:name="S" style:family="paragraph" style:class="text"/></office:styles>
+    <office:text><text:p/></office:text>
+  </before>
+  <ops>
+   <op optype="UpdateParagraphStyle" memberid="Alice" styleName="S"><setProperties><style:text-properties fo:font-size="8pt"/></setProperties></op>
+  </ops>
+  <after>
+    <office:styles><style:style style:name="S" style:family="paragraph" style:class="text"><style:text-properties fo:font-size="8pt"/></style:style></office:styles>
+    <office:text><text:p/></office:text>
+  </after>
+ </test>
+ <test name="UpdateParagraphStyle_fontSize6_fontSize8">
+  <before>
+    <office:styles><style:style style:name="S" style:family="paragraph" style:class="text"><style:text-properties fo:font-size="6pt"/></style:style></office:styles>
+    <office:text><text:p/></office:text>
+  </before>
+  <ops>
+   <op optype="UpdateParagraphStyle" memberid="Alice" styleName="S"><setProperties><style:text-properties fo:font-size="8pt"/></setProperties></op>
+  </ops>
+  <after>
+    <office:styles><style:style style:name="S" style:family="paragraph" style:class="text"><style:text-properties fo:font-size="8pt"/></style:style></office:styles>
+    <office:text><text:p/></office:text>
+  </after>
+ </test>
+
+ <test name="UpdateParagraphStyle_fontSize6_nothing">
+  <before>
+    <office:styles><style:style style:name="S" style:family="paragraph" style:class="text"><style:text-properties fo:font-size="6pt"/></style:style></office:styles>
+    <office:text><text:p/></office:text>
+  </before>
+  <ops>
+   <op optype="UpdateParagraphStyle" memberid="Alice" styleName="S"><removedProperties><style:text-properties attributes="fo:font-size"/></removedProperties></op>
+  </ops>
+  <after>
+    <office:styles><style:style style:name="S" style:family="paragraph" style:class="text"></style:style></office:styles>
+    <office:text><text:p/></office:text>
+  </after>
+ </test>
+ <test name="UpdateParagraphStyleU_nothing_rightMargin4">
+  <before><office:styles><style:style style:name="S" style:family="paragraph" style:class="text"></style:style></office:styles><office:text><text:p/></office:text></before>
+  <ops>
+   <op optype="UpdateParagraphStyle" memberid="Alice" styleName="S"><setProperties><style:paragraph-properties fo:margin-right="4mm"/></setProperties></op>
+  </ops>
+  <after>
+   <office:styles><style:style style:name="S" style:family="paragraph" style:class="text"><style:paragraph-properties fo:margin-right="4mm"/></style:style></office:styles>
+   <office:text><text:p/></office:text>
+  </after>
+ </test>
+ <test name="UpdateParagraphStyleU_rightMargin2_rightMargin4">
+  <before><office:styles><style:style style:name="S" style:family="paragraph" style:class="text"><style:paragraph-properties fo:margin-right="2mm"/></style:style></office:styles><office:text><text:p/></office:text></before>
+  <ops>
+   <op optype="UpdateParagraphStyle" memberid="Alice" styleName="S"><setProperties><style:paragraph-properties fo:margin-right="4mm"/></setProperties></op>
+  </ops>
+  <after>
+   <office:styles><style:style style:name="S" style:family="paragraph" style:class="text"><style:paragraph-properties fo:margin-right="4mm"/></style:style></office:styles>
+   <office:text><text:p/></office:text>
+  </after>
+ </test>
+ <test name="UpdateParagraphStyleU_rightMargin2_nothing">
+  <before><office:styles><style:style style:name="S" style:family="paragraph" style:class="text"><style:paragraph-properties fo:margin-right="2mm"/></style:style></office:styles><office:text><text:p/></office:text></before>
+  <ops>
+   <op optype="UpdateParagraphStyle" memberid="Alice" styleName="S"><removedProperties><style:paragraph-properties attributes="fo:margin-right"/></removedProperties></op>
+  </ops>
+  <after>
+   <office:styles><style:style style:name="S" style:family="paragraph" style:class="text"></style:style></office:styles>
+   <office:text><text:p/></office:text>
+  </after>
+ </test>
+ <test name="UpdateParagraphStyle_nothing_nextStyle2">
+  <before>
+   <office:styles><style:style style:name="S1" style:family="paragraph" style:class="text"/><style:style style:name="S2" style:family="paragraph" style:class="text"/></office:styles>
+   <office:text><text:p/></office:text>
+  </before>
+  <ops>
+   <op optype="UpdateParagraphStyle" memberid="Alice" styleName="S2"><setProperties style:next-style-name="S2"/></op>
+  </ops>
+  <after>
+   <office:styles><style:style style:name="S1" style:family="paragraph" style:class="text"/><style:style style:name="S2" style:family="paragraph" style:class="text" style:next-style-name="S2"/></office:styles>
+   <office:text><text:p/></office:text>
+  </after>
+ </test>
+ <test name="UpdateParagraphStyle_nextStyle1_nextStyle2">
+  <before>
+   <office:styles><style:style style:name="S1" style:family="paragraph" style:class="text"/><style:style style:name="S2" style:family="paragraph" style:class="text" style:next-style-name="S1"/></office:styles>
+   <office:text><text:p/></office:text>
+  </before>
+  <ops>
+   <op optype="UpdateParagraphStyle" memberid="Alice" styleName="S2"><setProperties style:next-style-name="S2"/></op>
+  </ops>
+  <after>
+   <office:styles><style:style style:name="S1" style:family="paragraph" style:class="text"/><style:style style:name="S2" style:family="paragraph" style:class="text" style:next-style-name="S2"/></office:styles>
+   <office:text><text:p/></office:text>
+  </after>
+ </test>
+ <test name="UpdateParagraphStyle_nextStyle1_nothing">
+  <before>
+   <office:styles><style:style style:name="S1" style:family="paragraph" style:class="text"/><style:style style:name="S2" style:family="paragraph" style:class="text" style:next-style-name="S1"/></office:styles>
+   <office:text><text:p/></office:text>
+  </before>
+  <ops>
+   <op optype="UpdateParagraphStyle" memberid="Alice" styleName="S2"><removedProperties attributes="style:next-style-name"/></op>
+  </ops>
+  <after>
+   <office:styles><style:style style:name="S1" style:family="paragraph" style:class="text"/><style:style style:name="S2" style:family="paragraph" style:class="text"/></office:styles>
+   <office:text><text:p/></office:text>
+  </after>
+ </test>
+
+ <test name="SetParagraphStyle_unset_set">
+  <before>
+   <office:styles><style:style style:name="S" style:family="paragraph" style:class="text"/></office:styles>
+   <office:text><text:p/></office:text>
+  </before>
+  <ops>
+   <op optype="SetParagraphStyle" position="0" styleName="S"/>
+  </ops>
+  <after>
+   <office:styles><style:style style:name="S" style:family="paragraph" style:class="text"/></office:styles>
+   <office:text><text:p text:style-name="S"/></office:text>
+  </after>
+ </test>
+ <test name="SetParagraphStyle_set_set">
+  <before>
+   <office:styles><style:style style:name="S" style:family="paragraph" style:class="text"/><style:style style:name="SB" style:family="paragraph" style:class="text"/></office:styles>
+   <office:text><text:p text:style-name="SB"/></office:text>
+  </before>
+  <ops>
+   <op optype="SetParagraphStyle" position="0" styleName="S"/>
+  </ops>
+  <after>
+   <office:styles><style:style style:name="S" style:family="paragraph" style:class="text"/><style:style style:name="SB" style:family="paragraph" style:class="text"/></office:styles>
+   <office:text><text:p text:style-name="S"/></office:text>
+  </after>
+ </test>
+ <test name="SetParagraphStyle_set_unset">
+  <before>
+   <office:styles><style:style style:name="S" style:family="paragraph" style:class="text"/></office:styles>
+   <office:text><text:p text:style-name="S"/></office:text>
+  </before>
+  <ops>
+   <op optype="SetParagraphStyle" position="0" styleName=""/>
+  </ops>
+  <after>
+   <office:styles><style:style style:name="S" style:family="paragraph" style:class="text"/></office:styles>
+   <office:text><text:p/></office:text>
+  </after>
+ </test>
+  <test name="Remove_deleteMergeBig">
+  <before><office:text><text:p>zer<text:span>o</text:span></text:p><text:p></text:p><text:p></text:p><text:list><text:list-item><text:p></text:p></text:list-item><text:list-item><text:p></text:p></text:list-item><text:list-item><text:p><text:span>one</text:span></text:p></text:list-item></text:list></office:text></before>
+  <ops>
+   <op optype="RemoveText" position="4" length="5"/>
+  </ops>
+  <after><office:text><text:p>zer<text:span>o</text:span><text:span>one</text:span></text:p></office:text></after>
+ </test>
+ <test name="Remove_deleteMerge_paragraphWithTrailingSpace">
+  <before><office:text><text:p>ab </text:p><text:p>cd</text:p></office:text></before>
+   <ops>
+    <op optype="AddCursor" memberid="Bob"/>
+    <op optype="MoveCursor" memberid="Bob" position="1" length="3"/>
+    <op optype="RemoveText" memberid="Bob" position="1" length="3"/>
+   </ops>
+  <after><office:text><text:p>a<c:cursor c:memberId="Bob"/>d</text:p></office:text></after>
+ </test>
+ <test name="Remove_deleteWithUncompressedWhiteSpace">
+  <before><office:text><text:p>ab   cd</text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="1" length="3"/>
+   <op optype="RemoveText" memberid="Bob" position="1" length="3"/>
+  </ops>
+  <after><office:text><text:p>a<c:cursor c:memberId="Bob"/>d</text:p></office:text></after>
+ </test>
+ <test name="ApplyDirectStyling_UnstyledParagraph">
+  <before>
+   <office:automatic-styles/>
+   <office:text><text:p>ABCD</text:p></office:text>
+  </before>
+  <ops>
+   <op optype="ApplyDirectStyling" memberid="Alice" position="1" length="2">
+    <setProperties><style:text-properties fo:font-weight="bold" /></setProperties>
+   </op>
+  </ops>
+  <after>
+   <office:automatic-styles><style:style style:name="auto63350368_0" wo:scope="document-content" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style></office:automatic-styles>
+   <office:text><text:p>A<text:span text:style-name="auto63350368_0">BC</text:span>D</text:p></office:text>
+  </after>
+ </test>
+ <test name="ApplyDirectStyling_FixesCursorPositions" hasSetup="true">
+  <before>
+   <office:automatic-styles/>
+   <office:text><text:p>ABCD</text:p></office:text>
+  </before>
+  <ops>
+   <op optype="AddCursor" memberid="Alice" />
+   <op optype="MoveCursor" memberid="Alice" position="4" length="0" />
+   <op optype="AddCursor" memberid="Bob" />
+   <op optype="MoveCursor" memberid="Bob" position="4" length="0" />
+   <op optype="ApplyDirectStyling" memberid="Alice" position="1" length="3">
+    <setProperties><style:text-properties fo:font-weight="bold" /></setProperties>
+   </op>
+  </ops>
+  <after>
+   <office:automatic-styles><style:style style:name="auto63350368_0" wo:scope="document-content" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style></office:automatic-styles>
+   <office:text><text:p>A<text:span text:style-name="auto63350368_0">BCD<c:cursor c:memberId="Alice"><html:span/></c:cursor><c:cursor c:memberId="Bob"><html:span/></c:cursor></text:span></text:p></office:text>
+  </after>
+ </test>
+ <test name="ApplyDirectStyling_ExistingSpan">
+  <before>
+   <office:automatic-styles/>
+   <office:text><text:p>A<text:span>BCDE</text:span>F</text:p></office:text>
+  </before>
+  <ops>
+   <op optype="ApplyDirectStyling" memberid="Alice" position="3" length="2">
+    <setProperties><style:text-properties fo:font-weight="bold" /></setProperties>
+   </op>
+  </ops>
+  <after>
+   <office:automatic-styles><style:style style:name="auto63350368_0" wo:scope="document-content" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style></office:automatic-styles>
+   <office:text><text:p>A<text:span>BC</text:span><text:span text:style-name="auto63350368_0">DE</text:span>F</text:p></office:text>
+  </after>
+ </test>
+  <test name="ApplyDirectStyling_AroundImage_WithInsignificantWhitespace">
+  <before>
+   <office:automatic-styles/>
+   <office:text>
+    <text:p><text:span>A</text:span></text:p>
+    <text:p><text:span><draw:frame text:anchor-type="as-char"><draw:image><office:binary-data>fake inline image</office:binary-data></draw:image></draw:frame></text:span></text:p>
+    <text:p><text:span>B</text:span></text:p>
+   </office:text>
+  </before>
+  <ops>
+   <op optype="ApplyDirectStyling" memberid="Alice" position="0" length="5">
+    <setProperties><style:text-properties fo:font-weight="bold" /></setProperties>
+   </op>
+  </ops>
+  <after>
+   <office:automatic-styles><style:style style:name="auto63350368_0" wo:scope="document-content" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style></office:automatic-styles>
+   <office:text>
+    <text:p><text:span text:style-name="auto63350368_0">A</text:span></text:p>
+    <text:p><text:span><draw:frame text:anchor-type="as-char"><draw:image><office:binary-data>fake inline image</office:binary-data></draw:image></draw:frame></text:span></text:p>
+    <text:p><text:span text:style-name="auto63350368_0">B</text:span></text:p>
+   </office:text>
+  </after>
+ </test>
+ <test name="ApplyDirectStyling_AroundImage_WithNoWhitespace">
+  <before>
+   <office:automatic-styles/>
+   <office:text><text:p><text:span>A</text:span></text:p><text:p><text:span><draw:frame text:anchor-type="as-char"><draw:image><office:binary-data>fake inline image</office:binary-data></draw:image></draw:frame></text:span></text:p><text:p><text:span>B</text:span></text:p></office:text>
+  </before>
+  <ops>
+   <op optype="ApplyDirectStyling" memberid="Alice" position="0" length="5">
+    <setProperties><style:text-properties fo:font-weight="bold" /></setProperties>
+   </op>
+  </ops>
+  <after>
+   <office:automatic-styles><style:style style:name="auto63350368_0" wo:scope="document-content" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style></office:automatic-styles>
+   <office:text><text:p><text:span text:style-name="auto63350368_0">A</text:span></text:p><text:p><text:span><draw:frame text:anchor-type="as-char"><draw:image><office:binary-data>fake inline image</office:binary-data></draw:image></draw:frame></text:span></text:p><text:p><text:span text:style-name="auto63350368_0">B</text:span></text:p></office:text>
+  </after>
+ </test>
+ <test name="ApplyDirectStyling_WithinNonSpanContainer">
+  <before>
+   <office:automatic-styles/>
+   <office:text><text:p><html:span class="annotationHighlight">ABCD</html:span></text:p></office:text>
+  </before>
+  <ops>
+   <op optype="ApplyDirectStyling" memberid="Alice" position="1" length="2">
+    <setProperties><style:text-properties fo:font-weight="bold" /></setProperties>
+   </op>
+  </ops>
+  <after>
+   <office:automatic-styles><style:style style:name="auto63350368_0" wo:scope="document-content" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style></office:automatic-styles>
+   <office:text><text:p><html:span class="annotationHighlight">A<text:span text:style-name="auto63350368_0">BC</text:span>D</html:span></text:p></office:text>
+  </after>
+ </test>
+
+ <test name="AddAnnotation_simple">
+  <before>
+   <office:text><text:p>ABCD</text:p></office:text>
+  </before>
+  <ops>
+   <op optype="AddAnnotation" memberid="Alice" position="2" length="0" name="alice_1" timestamp="1375706047061">
+   </op>
+  </ops>
+  <after>
+   <office:text><text:p>AB<office:annotation office:name="alice_1"><dc:creator e:memberid="Alice">Alice</dc:creator><dc:date>2013-08-05T12:34:07.061Z</dc:date><text:list><text:list-item><text:p></text:p></text:list-item></text:list></office:annotation>CD</text:p></office:text>
+  </after>
+ </test>
+ <test name="AddMemberAddAnnotation_simple">
+  <before>
+   <office:text><text:p>ABCD</text:p></office:text>
+  </before>
+  <ops>
+   <op optype="AddMember" memberid="John">
+    <setProperties fullName="John Doe">
+    </setProperties>
+   </op>
+   <op optype="AddAnnotation" memberid="John" position="2" length="0" name="alice_1" timestamp="1375706047061">
+   </op>
+  </ops>
+  <after>
+   <office:text><text:p>AB<office:annotation office:name="alice_1"><dc:creator e:memberid="John">John Doe</dc:creator><dc:date>2013-08-05T12:34:07.061Z</dc:date><text:list><text:list-item><text:p></text:p></text:list-item></text:list></office:annotation>CD</text:p></office:text>
+  </after>
+ </test>
+ <test name="AddAnnotationUpdateMember_simple">
+  <before>
+   <office:text><text:p>ABCD</text:p></office:text>
+  </before>
+  <ops>
+   <op optype="AddMember" memberid="John">
+    <setProperties fullName="John Doe">
+    </setProperties>
+   </op>
+   <op optype="AddAnnotation" memberid="John" position="2" length="0" name="alice_1" timestamp="1375706047061">
+   </op>
+   <op optype="UpdateMember" memberid="John">
+    <setProperties fullName="Don Joe">
+    </setProperties>
+   </op>
+  </ops>
+  <after>
+   <office:text><text:p>AB<office:annotation office:name="alice_1"><dc:creator e:memberid="John">Don Joe</dc:creator><dc:date>2013-08-05T12:34:07.061Z</dc:date><text:list><text:list-item><text:p></text:p></text:list-item></text:list></office:annotation>CD</text:p></office:text>
+  </after>
+ </test>
+ <test name="AddAnnotation_ranged">
+  <before>
+   <office:text><text:p>ABCD</text:p><text:p>EFG<text:span>HIJ</text:span></text:p></office:text>
+  </before>
+  <ops>
+   <op optype="AddAnnotation" memberid="Alice" position="3" length="6" name="alice_2" timestamp="1375706047061">
+   </op>
+  </ops>
+  <after>
+   <office:text><text:p>ABC<office:annotation office:name="alice_2"><dc:creator e:memberid="Alice">Alice</dc:creator><dc:date>2013-08-05T12:34:07.061Z</dc:date><text:list><text:list-item><text:p></text:p></text:list-item></text:list></office:annotation>D</text:p><text:p>EFG<text:span>H<office:annotation-end office:name="alice_2"/>IJ</text:span></text:p></office:text>
+  </after>
+ </test>
+ <test name="AddAnnotation_rangedMultiple">
+  <before>
+   <office:text><text:p>ABCD</text:p><text:p>EFG<text:span>HIJ</text:span></text:p></office:text>
+  </before>
+  <ops>
+   <op optype="AddAnnotation" memberid="Alice" position="3" length="6" name="alice_1" timestamp="1375706047061"/>
+   <op optype="AddAnnotation" memberid="Alice" position="3" length="0" name="alice_2" timestamp="1375706047061"/>
+  </ops>
+  <after>
+   <office:text><text:p>ABC<office:annotation office:name="alice_2"><dc:creator e:memberid="Alice">Alice</dc:creator><dc:date>2013-08-05T12:34:07.061Z</dc:date><text:list><text:list-item><text:p></text:p></text:list-item></text:list></office:annotation><office:annotation office:name="alice_1"><dc:creator e:memberid="Alice">Alice</dc:creator><dc:date>2013-08-05T12:34:07.061Z</dc:date><text:list><text:list-item><text:p></text:p></text:list-item></text:list></office:annotation>D</text:p><text:p>EFG<text:span>H<office:annotation-end office:name="alice_1"/>IJ</text:span></text:p></office:text>
+  </after>
+ </test>
+ <test name="RemoveAnnotation_ranged">
+  <before>
+   <office:text><text:p>ABC<office:annotation office:name="alice_2"><dc:creator e:memberid="Alice">Alice</dc:creator><dc:date>2013-08-05T12:34:07.061Z</dc:date><text:list><text:list-item><text:p>xyz</text:p></text:list-item></text:list></office:annotation>D</text:p><text:p>EFG<text:span>H<office:annotation-end office:name="alice_2"/>IJ</text:span></text:p></office:text>
+  </before>
+  <ops>
+   <op optype="RemoveAnnotation" memberid="Alice" position="4" length="3">
+   </op>
+  </ops>
+  <after>
+   <office:text><text:p>ABCD</text:p><text:p>EFG<text:span>HIJ</text:span></text:p></office:text>
+  </after>
+ </test>
+ <test name="RemoveAnnotation_simple">
+  <before>
+   <office:text><text:p>ABC<office:annotation office:name="alice_2"><dc:creator e:memberid="Alice">Alice</dc:creator><dc:date>2013-08-05T12:34:07.061Z</dc:date><text:list><text:list-item><text:p></text:p></text:list-item></text:list></office:annotation>D</text:p><text:p>EFG<text:span>HIJ</text:span></text:p></office:text>
+  </before>
+  <ops>
+   <op optype="RemoveAnnotation" memberid="Alice" position="4" length="0">
+   </op>
+  </ops>
+  <after>
+   <office:text><text:p>ABCD</text:p><text:p>EFG<text:span>HIJ</text:span></text:p></office:text>
+  </after>
+ </test>
+ <test name="AddAnnotation_simple_multiCursors_1">
+  <before><office:text><text:p>abcdefgh</text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Alice"/>
+   <op optype="MoveCursor" memberid="Alice" position="3"/>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="3"/>
+   <op optype="AddCursor" memberid="Eve"/>
+   <op optype="MoveCursor" memberid="Eve" position="3"/>
+   <op optype="AddAnnotation" memberid="Alice" position="3" length="0" name="alice_1" timestamp="1375706047061"/>
+  </ops>
+  <after><office:text><text:p>abc<c:cursor c:memberId="Bob"/><c:cursor c:memberId="Eve"/><office:annotation office:name="alice_1"><dc:creator e:memberid="Alice">Alice</dc:creator><dc:date>2013-08-05T12:34:07.061Z</dc:date><text:list><text:list-item><text:p><c:cursor c:memberId="Alice"/></text:p></text:list-item></text:list></office:annotation>defgh</text:p></office:text></after>
+ </test>
+ <test name="AddAnnotation_simple_multiCursors_2">
+  <before><office:text><text:p>abcdefgh</text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Alice"/>
+   <op optype="MoveCursor" memberid="Alice" position="3"/>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="3"/>
+   <op optype="AddAnnotation" memberid="Alice" position="3" length="0" name="alice_1" timestamp="1375706047061"/>
+   <op optype="AddCursor" memberid="Eve"/>
+   <op optype="MoveCursor" memberid="Eve" position="3"/>
+  </ops>
+  <after><office:text><text:p>abc<c:cursor c:memberId="Bob"/><c:cursor c:memberId="Eve"/><office:annotation office:name="alice_1"><dc:creator e:memberid="Alice">Alice</dc:creator><dc:date>2013-08-05T12:34:07.061Z</dc:date><text:list><text:list-item><text:p><c:cursor c:memberId="Alice"/></text:p></text:list-item></text:list></office:annotation>defgh</text:p></office:text></after>
+ </test>
+ <test name="SplitParagraphAddAnnotation_startPosSame">
+  <!-- a paragraph split at the position of the start of an annotation should keep the split outside of the annotation,
+       but move the cursor inside the annotation, so behind the annotation content -->
+  <before><office:text><text:p>abcd</text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Alice"/>
+   <op optype="MoveCursor" memberid="Alice" position="2"/>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="2"/>
+   <op optype="AddAnnotation" memberid="Alice" position="2" length="1" name="alice_1" timestamp="1375706047061"/>
+   <op optype="SplitParagraph" memberid="Bob" position="2" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p>ab</text:p><text:p><c:cursor c:memberId="Bob"/><office:annotation office:name="alice_1"><dc:creator e:memberid="Alice">Alice</dc:creator><dc:date>2013-08-05T12:34:07.061Z</dc:date><text:list><text:list-item><text:p><c:cursor c:memberId="Alice"/></text:p></text:list-item></text:list></office:annotation>c<office:annotation-end office:name="alice_1"/>d</text:p></office:text></after>
+ </test>
+ <test name="SplitParagraphAddAnnotation_endPosSame">
+  <!-- a paragraph split at the position of the end of an annotation should add the split to the annotated area -->
+  <before><office:text><text:p>abcd</text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Alice"/>
+   <op optype="MoveCursor" memberid="Alice" position="2"/>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="3"/>
+   <op optype="AddAnnotation" memberid="Alice" position="2" length="1" name="alice_1" timestamp="1375706047061"/>
+   <op optype="SplitParagraph" memberid="Bob" position="5" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p>ab<office:annotation office:name="alice_1"><dc:creator e:memberid="Alice">Alice</dc:creator><dc:date>2013-08-05T12:34:07.061Z</dc:date><text:list><text:list-item><text:p><c:cursor c:memberId="Alice"/></text:p></text:list-item></text:list></office:annotation>c</text:p><text:p><office:annotation-end office:name="alice_1"/><c:cursor c:memberId="Bob"/>d</text:p></office:text></after>
+ </test>
+ <test name="AddAnnotationInsertText_startPosSameNotAtStartOfParagraph">
+  <!-- text inserted at the position of the start of an annotation which is not at the start of a paragraph should be added before the annotated area -->
+  <before><office:text><text:p>abcd</text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Alice"/>
+   <op optype="MoveCursor" memberid="Alice" position="2"/>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="2"/>
+   <op optype="AddAnnotation" memberid="Alice" position="2" length="1" name="alice_1" timestamp="1375706047061"/>
+   <op optype="InsertText" memberid="Bob" position="2" text="123" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p>ab123<c:cursor c:memberId="Bob"/><office:annotation office:name="alice_1"><dc:creator e:memberid="Alice">Alice</dc:creator><dc:date>2013-08-05T12:34:07.061Z</dc:date><text:list><text:list-item><text:p><c:cursor c:memberId="Alice"/></text:p></text:list-item></text:list></office:annotation>c<office:annotation-end office:name="alice_1"/>d</text:p></office:text></after>
+ </test>
+ <test name="AddAnnotationInsertText_endPosSameNotAtEndOfParagraph">
+  <!-- text inserted at the position of the end of an annotation which is not at the end of a paragraph should be added to the annotated area -->
+  <before><office:text><text:p>abcd</text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Alice"/>
+   <op optype="MoveCursor" memberid="Alice" position="2"/>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="3"/>
+   <op optype="AddAnnotation" memberid="Alice" position="2" length="1" name="alice_1" timestamp="1375706047061"/>
+   <op optype="InsertText" memberid="Bob" position="5" text="1" moveCursor="true"/>
+   <op optype="InsertText" memberid="Bob" position="6" text="2" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p>ab<office:annotation office:name="alice_1"><dc:creator e:memberid="Alice">Alice</dc:creator><dc:date>2013-08-05T12:34:07.061Z</dc:date><text:list><text:list-item><text:p><c:cursor c:memberId="Alice"/></text:p></text:list-item></text:list></office:annotation>c12<c:cursor c:memberId="Bob"/><office:annotation-end office:name="alice_1"/>d</text:p></office:text></after>
+ </test>
+ <test name="AddAnnotationInsertText_endPosSameAtEndOfParagraph">
+  <!-- also text inserted at the position of the end of an annotation which is at the end of a paragraph should be added to the annotated area -->
+  <before><office:text><text:p>abcd</text:p></office:text></before>
+  <ops>
+   <op optype="AddCursor" memberid="Alice"/>
+   <op optype="MoveCursor" memberid="Alice" position="2"/>
+   <op optype="AddCursor" memberid="Bob"/>
+   <op optype="MoveCursor" memberid="Bob" position="4"/>
+   <op optype="AddAnnotation" memberid="Alice" position="2" length="2" name="alice_1" timestamp="1375706047061"/>
+   <op optype="InsertText" memberid="Bob" position="6" text="1" moveCursor="true"/>
+   <op optype="InsertText" memberid="Bob" position="7" text="2" moveCursor="true"/>
+  </ops>
+  <after><office:text><text:p>ab<office:annotation office:name="alice_1"><dc:creator e:memberid="Alice">Alice</dc:creator><dc:date>2013-08-05T12:34:07.061Z</dc:date><text:list><text:list-item><text:p><c:cursor c:memberId="Alice"/></text:p></text:list-item></text:list></office:annotation>cd12<c:cursor c:memberId="Bob"/><office:annotation-end office:name="alice_1"/></text:p></office:text></after>
+ </test>
+ <test name="InsertImage">
+  <before>
+   <office:text><text:p><text:span>HelloWorld</text:span><draw:frame draw:name="graphics1"><draw:image/></draw:frame></text:p></office:text>
+  </before>
+  <ops>
+   <op optype="InsertImage" position="5" filename="Pictures/helloworld.jpg" base64string='HELLOWORLD' frameWidth="5cm" frameHeight="6cm" frameStyleName="fr1" frameName="graphics2" />
+  </ops>
+  <after>
+   <office:text><text:p><text:span>Hello<draw:frame draw:name="graphics2" draw:style-name="fr1" text:anchor-type="as-char" svg:width="5cm" svg:height="6cm" h:styleid="graphics2"><draw:image xlink:href="Pictures/helloworld.jpg" xlink:type="simple" xlink:actuate="onLoad" xlink:show="embed" h:styleid="graphics2img"/></draw:frame>World</text:span><draw:frame draw:name="graphics1"><draw:image/></draw:frame></text:p></office:text>
+  </after>
+ </test>
+ <test name="UpdateMetadata_create">
+  <before>
+   <office:meta></office:meta><office:text></office:text>
+  </before>
+  <ops>
+   <op optype="UpdateMetadata" memberid="Alice" timestamp="1375706047061">
+    <setProperties meta:initial-creator="Bob"/> 
+   </op>
+  </ops>
+  <after>
+   <office:meta><meta:editing-cycles>1</meta:editing-cycles><dc:creator>Alice</dc:creator><dc:date>2013-08-05T12:34:07.061Z</dc:date><meta:initial-creator>Bob</meta:initial-creator></office:meta><office:text></office:text>
+  </after>
+ </test>
+ <test name="UpdateMetadata_modifySet">
+  <before>
+   <office:meta><dc:title>TestTitle</dc:title></office:meta><office:text></office:text>
+  </before>
+  <ops>
+   <op optype="UpdateMetadata" memberid="Alice" timestamp="1375706047061">
+    <setProperties dc:title="Title"/>
+   </op>
+  </ops>
+  <after>
+   <office:meta><meta:editing-cycles>1</meta:editing-cycles><dc:title>Title</dc:title><dc:creator>Alice</dc:creator><dc:date>2013-08-05T12:34:07.061Z</dc:date></office:meta><office:text></office:text>
+  </after>
+ </test>
+ <test name="UpdateMetadata_modifySetRemove">
+  <before>
+   <office:meta><dc:title>Title</dc:title><meta:initial-creator>Bob</meta:initial-creator></office:meta><office:text></office:text>
+  </before>
+  <ops>
+   <op optype="UpdateMetadata" memberid="Alice" timestamp="1375706047061">
+    <setProperties dc:creator="Alice"/>
+    <removedProperties attributes="meta:initial-creator,dc:title"/>
+   </op>
+  </ops>
+  <after>
+   <office:meta><meta:editing-cycles>1</meta:editing-cycles><dc:creator>Alice</dc:creator><dc:date>2013-08-05T12:34:07.061Z</dc:date></office:meta><office:text></office:text>
+  </after>
+ </test>
+ <test name="ApplyHyperlink_WithinSpan">
+  <before><office:text><text:p><text:span>Hello</text:span></text:p></office:text></before>
+  <ops>
+   <op optype="ApplyHyperlink" memberid="Alice" position="1" length="3" hyperlink="link1" />
+  </ops>
+  <after><office:text><text:p><text:span>H<text:a xlink:type="simple" xlink:href="link1">ell</text:a>o</text:span></text:p></office:text></after>
+ </test>
+ <test name="ApplyHyperlink_AcrossTwoSpan">
+  <before><office:text><text:p><text:span>Hello</text:span><text:span>World</text:span></text:p></office:text></before>
+  <ops>
+   <op optype="ApplyHyperlink" memberid="Alice" position="1" length="8" hyperlink="link1" />
+  </ops>
+  <after><office:text><text:p><text:span>H<text:a xlink:type="simple" xlink:href="link1">ello</text:a></text:span><text:span><text:a xlink:type="simple" xlink:href="link1">Worl</text:a>d</text:span></text:p></office:text></after>
+ </test>
+ <test name="ApplyHyperlink_AfterLink">
+  <before><office:text><text:p><text:a xlink:type="simple" xlink:href="link1">hello</text:a>world</text:p></office:text></before>
+   <ops>
+    <op optype="ApplyHyperlink" memberid="Alice" position="5" length="5" hyperlink="link2" />
+  </ops>
+  <after><office:text><text:p><text:a xlink:type="simple" xlink:href="link1">hello</text:a><text:a xlink:type="simple" xlink:href="link2">world</text:a></text:p></office:text></after>
+ </test>
+ <test name="ApplyHyperlink_BeforeLink">
+  <before><office:text><text:p>world<text:a xlink:type="simple" xlink:href="link1">hello</text:a></text:p></office:text></before>
+  <ops>
+   <op optype="ApplyHyperlink" memberid="Alice" position="0" length="5" hyperlink="link2" />
+  </ops>
+  <after><office:text><text:p><text:a xlink:type="simple" xlink:href="link2">world</text:a><text:a xlink:type="simple" xlink:href="link1">hello</text:a></text:p></office:text></after>
+ </test>
+ <test name="RemoveHyperlink_SingleLink">
+  <before><office:text><text:p><text:a xlink:type="simple" xlink:href="link1"><text:span>Hello</text:span><text:span>World</text:span></text:a></text:p></office:text></before>
+  <ops>
+   <op optype="RemoveHyperlink" memberid="Alice" position="1" length="8" />
+  </ops>
+  <after><office:text><text:p><text:span>Hello</text:span><text:span>World</text:span></text:p></office:text></after>
+ </test>
+ <test name="RemoveHyperlink_AfterLink">
+  <before><office:text><text:p><text:a xlink:type="simple" xlink:href="link1">hello</text:a><text:a xlink:type="simple" xlink:href="link2">world</text:a></text:p></office:text></before>
+  <ops>
+   <op optype="RemoveHyperlink" memberid="Alice" position="5" length="5" />
+  </ops>
+  <after><office:text><text:p><text:a xlink:type="simple" xlink:href="link1">hello</text:a>world</text:p></office:text></after>
+ </test>
+ <test name="RemoveHyperlink_BeforeLink">
+  <before><office:text><text:p><text:a xlink:type="simple" xlink:href="link1">hello</text:a><text:a xlink:type="simple" xlink:href="link2">world</text:a></text:p></office:text></before>
+  <ops>
+   <op optype="RemoveHyperlink" memberid="Alice" position="0" length="5" />
+  </ops>
+  <after><office:text><text:p>hello<text:a xlink:type="simple" xlink:href="link2">world</text:a></text:p></office:text></after>
+ </test>
+</tests>

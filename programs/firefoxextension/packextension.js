@@ -9,6 +9,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -29,48 +32,58 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
-/*global runtime: true, core: true*/
-runtime.loadClass("core.Zip");
+/*global require, runtime, core*/
 runtime.loadClass("core.Base64");
 
-function addFiles(zip, pos, files, callback) {
+function addFiles(dirname, pos, files, callback) {
     "use strict";
     if (pos >= files.length) {
-        zip.write(function (err) {
-            return callback(err);
-        });
         return;
     }
-    var path = files[pos];
-    runtime.readFile(path, "binary", function (err, data) {
-        var base64;
+    var path = require("path"),
+        fs = require("fs"),
+        filepath = files[pos];
+    runtime.readFile(filepath, "binary", function (err, data) {
+        var base64,
+            target = path.join(dirname, filepath),
+            dir = dirname,
+            reldir = path.relative(dir, path.dirname(target));
         if (err) {
             return callback(err);
         }
-        if (path === "content/webodf.js") {
+        if (filepath === "content/webodf.js") {
             // replace eval() with evil(), since Firefox does not approve of it
             base64 = new core.Base64();
             data = base64.convertUTF8ArrayToUTF16String(data);
             data = data.replace(new RegExp('eval\\(', 'g'), 'evil(');
             data = runtime.byteArrayFromString(data);
         }
-        zip.save(path, data, false, new Date());
-        addFiles(zip, pos + 1, files, callback);
+        reldir.split(path.sep).forEach(function (part) {
+            dir = path.join(dir, part);
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir);
+            }
+        });
+        fs.writeFile(target, data, {encoding: "binary"}, function (err) {
+            if (err) {
+                throw err;
+            }
+            addFiles(dirname, pos + 1, files, callback);
+        });
     });
 }
 
 var args = arguments,
-    filename = args[1],
-    zipmembers = [],
-    i,
-    zip = new core.Zip(filename, null);
+    dirname = args[1],
+    members = [],
+    i;
 for (i = 2; i < arguments.length; i += 1) {
-    zipmembers.push(arguments[i]);
+    members.push(arguments[i]);
 }
 
-addFiles(zip, 0, zipmembers, function (err) {
+addFiles(dirname, 0, members, function (err) {
     "use strict";
     if (err) {
         runtime.log(err);

@@ -9,6 +9,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -29,15 +32,14 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
 /*global Ext, app, runtime, xmldom, odf*/
 runtime.loadClass("xmldom.XPath");
-runtime.loadClass("odf.Style2CSS");
+runtime.loadClass("odf.Namespaces");
 Ext.define('WebODFApp.view.FileDetail', (function () {
     "use strict";
     var panel,
-        style2CSS = new odf.Style2CSS(),
         xpath = new xmldom.XPath(),
         fileDetail,
         title,
@@ -48,13 +50,13 @@ Ext.define('WebODFApp.view.FileDetail', (function () {
         var ps,
             title;
         ps = xpath.getODFElementsWithXPath(body,
-                ".//text:h", style2CSS.namespaceResolver);
+                ".//text:h", odf.Namespaces.resolvePrefix);
         title = "";
         if (ps && ps.length) {
             title = ps[0].nodeValue;
         } else {
             ps = xpath.getODFElementsWithXPath(body,
-                ".//text:p", style2CSS.namespaceResolver);
+                ".//text:p", odf.Namespaces.resolvePrefix);
             if (ps && ps.length) {
                 title = ps[0].nodeValue;
             }

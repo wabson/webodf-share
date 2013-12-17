@@ -1,5 +1,6 @@
 /**
- * Copyright (C) 2012 KO GmbH <copyright@kogmbh.com>
+ * @license
+ * Copyright (C) 2012-2013 KO GmbH <copyright@kogmbh.com>
  *
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
@@ -8,6 +9,9 @@
  * the License, or (at your option) any later version.  The code is distributed
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
  *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
@@ -29,39 +33,70 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
+
 /*global define,require */
-define("webodf/editor/widgets/paragraphStyles", [], function () {
+
+define("webodf/editor/widgets/paragraphStyles",
+       ["webodf/editor/EditorSession"],
+
+    function (EditorSession) {
     "use strict";
     /**
      * @constructor
      */
-    var ParagraphStyles = function (editorSession, callback) {
+    var ParagraphStyles = function (callback) {
         var self = this,
-            select;
+            editorSession,
+            select,
+            defaultStyleUIId = ":default";
 
         this.widget = function () {
             return select;
         };
 
+        /*
+         * In this widget, we name the default style
+         * (which is referred to as "" in webodf) as
+         * ":default". The ":" is disallowed in an NCName, so this
+         * avoids clashes with other styles.
+         */
+
         this.value = function () {
-            return select.get('value');
+            var value = select.get('value');
+            if (value === defaultStyleUIId) {
+                value = "";
+            }
+            return value;
         };
 
         this.setValue = function (value) {
-            select.set('value', value);
+            if (value === "") {
+                value = defaultStyleUIId;
+            }
+            select.set('value', value, false);
         };
-        
+
         // events
         this.onAdd = null;
         this.onRemove = null;
-        
+        this.onChange = function () {};
+
         function populateStyles() {
-            var i, availableStyles, selectionList;
-            selectionList = [];
-            availableStyles = editorSession.getAvailableParagraphStyles();
-            
+            var i, selectionList, availableStyles;
+
+            if (! select) {
+                return;
+            }
+
+            // Populate the Default Style always 
+            selectionList = [{
+                label: runtime.tr("Default Style"),
+                value: defaultStyleUIId
+            }];
+            availableStyles = editorSession ? editorSession.getAvailableParagraphStyles() : [];
+
             for (i = 0; i < availableStyles.length; i += 1) {
                 selectionList.push({
                     label: availableStyles[i].displayName,
@@ -73,10 +108,43 @@ define("webodf/editor/widgets/paragraphStyles", [], function () {
             select.addOption(selectionList);
         }
 
+        function addStyle(styleInfo) {
+            var stylens = "urn:oasis:names:tc:opendocument:xmlns:style:1.0",
+                newStyleElement;
+
+            if (styleInfo.family !== 'paragraph') {
+                return;
+            }
+
+            newStyleElement = editorSession.getParagraphStyleElement(styleInfo.name);
+            if (select) {
+                select.addOption({
+                    value: styleInfo.name,
+                    label: newStyleElement.getAttributeNS(stylens, 'display-name')
+                });
+            }
+
+            if (self.onAdd) {
+                self.onAdd(styleInfo.name);
+            }
+        }
+
+        function removeStyle(styleInfo) {
+            if (styleInfo.family !== 'paragraph') {
+                return;
+            }
+
+            if (select) {
+                select.removeOption(styleInfo.name);
+            }
+
+            if (self.onRemove) {
+                self.onRemove(styleInfo.name);
+            }
+        }
+
         function init(cb) {
             require(["dijit/form/Select"], function (Select) {
-                var stylens = "urn:oasis:names:tc:opendocument:xmlns:style:1.0";
-                 
                 select = new Select({
                     name: 'ParagraphStyles',
                     maxHeight: 200,
@@ -86,34 +154,47 @@ define("webodf/editor/widgets/paragraphStyles", [], function () {
                 });
 
                 populateStyles();
-                
-                editorSession.subscribe('styleCreated', function (newStyleName) {
-                    var newStyleElement = editorSession.getParagraphStyleElement(newStyleName);
-                    select.addOption({
-                        value: newStyleName,
-                        label: newStyleElement.getAttributeNS(stylens, 'display-name')
-                    });
-                    
-                    if (self.onAdd) {
-                        self.onAdd(newStyleName);
-                    }
-                });
 
-                editorSession.subscribe('styleDeleted', function (styleName) {
-                    select.removeOption(styleName);
-                    
-                    if (self.onRemove) {
-                        self.onRemove(styleName);
-                    }
-                });
+                // Call ParagraphStyles's onChange handler every time
+                // the select's onchange is called, and pass the value
+                // as reported by ParagraphStyles.value(), because we do not
+                // want to expose the internal naming like ":default" outside this
+                // class.
+                select.onChange = function () {
+                    self.onChange(self.value());
+                };
+
                 return cb();
             });
         }
-    
+
+        function handleCursorMoved(cursor) {
+            var disabled = cursor.getSelectionType() === ops.OdtCursor.RegionSelection;
+            if (select) {
+                select.setAttribute('disabled', disabled);
+            }
+        }
+
+        this.setEditorSession = function(session) {
+            if (editorSession) {
+                editorSession.unsubscribe(EditorSession.signalCommonStyleCreated, addStyle);
+                editorSession.unsubscribe(EditorSession.signalCommonStyleDeleted, removeStyle);
+                editorSession.unsubscribe(EditorSession.signalCursorMoved, handleCursorMoved);
+            }
+            editorSession = session;
+            if (editorSession) {
+                editorSession.subscribe(EditorSession.signalCommonStyleCreated, addStyle);
+                editorSession.subscribe(EditorSession.signalCommonStyleDeleted, removeStyle);
+                editorSession.subscribe(EditorSession.signalCursorMoved, handleCursorMoved);
+                populateStyles();
+            }
+        };
+
+        // init
         init(function () {
             return callback(self);
         });
     };
-        
+
     return ParagraphStyles;
 });

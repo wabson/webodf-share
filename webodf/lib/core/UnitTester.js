@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2012 KO GmbH <jos.van.den.oever@kogmbh.com>
+ * Copyright (C) 2012,2013 KO GmbH <jos.van.den.oever@kogmbh.com>
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -7,6 +7,9 @@
  * the License, or (at your option) any later version.  The code is distributed
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
  *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
@@ -28,10 +31,20 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
-/*global runtime, Runtime, core*/
-/*jslint evil: true*/
+
+/*global runtime, Runtime, core, Node, Element*/
+
+/*jslint evil: true, continue: true, emptyblock: true, unparam: true*/
+/**
+ * @typedef{{f:function(),name:!string}}
+ */
+core.NamedFunction;
+/**
+ * @typedef{{f:function(function()),name:!string}}
+ */
+core.NamedAsyncFunction;
 /**
  * @interface
  */
@@ -49,15 +62,17 @@ core.UnitTest.prototype.tearDown = function () {"use strict"; };
  */
 core.UnitTest.prototype.description = function () {"use strict"; };
 /**
- * @return {Array.<!function():undefined>}
+ * @return {!Array.<!core.NamedFunction>}
  */
 core.UnitTest.prototype.tests = function () {"use strict"; };
 /**
- * @return {Array.<!function(!function():undefined):undefined>}
+ * @return {!Array.<!core.NamedAsyncFunction>}
  */
 core.UnitTest.prototype.asyncTests = function () {"use strict"; };
 
-
+/**
+ * @return {!HTMLDivElement}
+ */
 core.UnitTest.provideTestAreaDiv = function () {
     "use strict";
     var maindoc = runtime.getWindow().document,
@@ -68,9 +83,12 @@ core.UnitTest.provideTestAreaDiv = function () {
     testarea = maindoc.createElement('div');
     testarea.setAttribute('id', 'testarea');
     maindoc.body.appendChild(testarea);
-    return testarea;
+    return /**@type{!HTMLDivElement}*/(testarea);
 };
 
+/**
+ * @return {undefined}
+ */
 core.UnitTest.cleanupTestAreaDiv = function () {
     "use strict";
     var maindoc = runtime.getWindow().document,
@@ -81,29 +99,76 @@ core.UnitTest.cleanupTestAreaDiv = function () {
 };
 
 /**
+ * Creates and returns a simple ODT document
+ * @param {!string} xml Xml fragment to insert in the document between the
+ *                      <office:document>..</office:document> tags
+ * @param {!Object.<string, string>} namespaceMap Name-value pairs that map the
+ *                                   prefix onto the appropriate uri namespace
+ * @returns {?Document}
+ */
+core.UnitTest.createOdtDocument = function (xml, namespaceMap) {
+    "use strict";
+    var /**@type{!string}*/
+        xmlDoc = "<?xml version='1.0' encoding='UTF-8'?>";
+
+    xmlDoc += "<office:document";
+    Object.keys(namespaceMap).forEach(function (key) {
+        xmlDoc += " xmlns:" + key + '="' + namespaceMap[key] + '"';
+    });
+    xmlDoc += ">";
+    xmlDoc += xml;
+    xmlDoc += "</office:document>";
+
+    return runtime.parseXML(xmlDoc);
+};
+
+/**
  * @constructor
  */
 core.UnitTestRunner = function UnitTestRunner() {
     "use strict";
-    var failedTests = 0;
+    var /**@type{!number}*/
+        failedTests = 0,
+        areObjectsEqual;
+    /**
+     * @param {!string} msg
+     * @return {undefined}
+     */
     function debug(msg) {
         runtime.log(msg);
     }
+    /**
+     * @param {!string} msg
+     * @return {undefined}
+     */
     function testFailed(msg) {
         failedTests += 1;
         runtime.log("fail", msg);
     }
+    /**
+     * @param {!string} msg
+     * @return {undefined}
+     */
     function testPassed(msg) {
         runtime.log("pass", msg);
     }
+    /**
+     * @param {!Array.<*>} a actual
+     * @param {!Array.<*>} b expected
+     * @return {!boolean}
+     */
     function areArraysEqual(a, b) {
         var i;
         try {
             if (a.length !== b.length) {
+                testFailed("array of length " + a.length + " should be "
+                           + b.length + " long");
                 return false;
             }
             for (i = 0; i < a.length; i += 1) {
                 if (a[i] !== b[i]) {
+                    testFailed(a[i] + " should be " + b[i] + " at array index "
+                               + i);
                     return false;
                 }
             }
@@ -112,6 +177,95 @@ core.UnitTestRunner = function UnitTestRunner() {
         }
         return true;
     }
+    /**
+     * @param {!Element} a actual
+     * @param {!Element} b expected
+     * @param {!boolean} skipReverseCheck
+     * @return {!boolean}
+     */
+    function areAttributesEqual(a, b, skipReverseCheck) {
+        var aatts = a.attributes,
+            n = aatts.length,
+            i,
+            att,
+            v;
+        for (i = 0; i < n; i += 1) {
+            att = /**@type{!Attr}*/(aatts.item(i));
+            if (att.prefix !== "xmlns" && att.namespaceURI !== "urn:webodf:names:steps") {
+                v = b.getAttributeNS(att.namespaceURI, att.localName);
+                if (!b.hasAttributeNS(att.namespaceURI, att.localName)) {
+                    testFailed("Attribute " + att.localName + " with value " + att.value + " was not present");
+                    return false;
+                }
+                if (v !== att.value) {
+                    testFailed("Attribute " + att.localName + " was " + v + " should be " + att.value);
+                    return false;
+                }
+            }
+        }
+        return skipReverseCheck ? true : areAttributesEqual(b, a, true);
+    }
+    /**
+     * @param {!Node} a actual
+     * @param {!Node} b expected
+     * @return {!boolean}
+     */
+    function areNodesEqual(a, b) {
+        var an, bn,
+            atype = a.nodeType,
+            btype = b.nodeType;
+        if (atype !== btype) {
+            testFailed("Nodetype '" + atype + "' should be '" + btype + "'");
+            return false;
+        }
+        if (atype === Node.TEXT_NODE) {
+            if (/**@type{!Text}*/(a).data === /**@type{!Text}*/(b).data) {
+                return true;
+            }
+            testFailed("Textnode data '" + /**@type{!Text}*/(a).data
+                       +  "' should be '" + /**@type{!Text}*/(b).data + "'");
+            return false;
+        }
+        runtime.assert(atype === Node.ELEMENT_NODE,
+            "Only textnodes and elements supported.");
+        if (a.namespaceURI !== b.namespaceURI) {
+            testFailed("namespace '" + a.namespaceURI + "' should be '"
+                    + b.namespaceURI + "'");
+            return false;
+        }
+        if (a.localName !== b.localName) {
+            testFailed("localName '" + a.localName + "' should be '"
+                    + b.localName + "'");
+            return false;
+        }
+        if (!areAttributesEqual(/**@type{!Element}*/(a),
+                                /**@type{!Element}*/(b), false)) {
+            return false;
+        }
+        an = a.firstChild;
+        bn = b.firstChild;
+        while (an) {
+            if (!bn) {
+                testFailed("Nodetype '" + an.nodeType + "' is unexpected here.");
+                return false;
+            }
+            if (!areNodesEqual(an, bn)) {
+                return false;
+            }
+            an = an.nextSibling;
+            bn = bn.nextSibling;
+        }
+        if (bn) {
+            testFailed("Nodetype '" + bn.nodeType + "' is missing here.");
+            return false;
+        }
+        return true;
+    }
+    /**
+     * @param {!*} actual
+     * @param {!*} expected
+     * @return {!boolean}
+     */
     function isResultCorrect(actual, expected) {
         if (expected === 0) {
             return actual === expected && (1 / actual) === (1 / expected);
@@ -124,10 +278,24 @@ core.UnitTestRunner = function UnitTestRunner() {
         }
         if (Object.prototype.toString.call(expected) ===
                 Object.prototype.toString.call([])) {
-            return areArraysEqual(actual, expected);
+            return areArraysEqual(/**@type{!Array}*/(actual),
+                                  /**@type{!Array}*/(expected));
+        }
+        if (typeof expected === "object" && typeof actual === "object") {
+            if (/**@type{!Object}*/(expected).constructor === Element
+                    || /**@type{!Object}*/(expected).constructor === Node) {
+                return areNodesEqual(/**@type{!Node}*/(actual),
+                                     /**@type{!Node}*/(expected));
+            }
+            return areObjectsEqual(/**@type{!Object}*/(actual),
+                                   /**@type{!Object}*/(expected));
         }
         return false;
     }
+    /**
+     * @param {*} v
+     * @return {!string}
+     */
     function stringify(v) {
         if (v === 0 && 1 / v < 0) {
             return "-0";
@@ -147,7 +315,7 @@ core.UnitTestRunner = function UnitTestRunner() {
         var exception, av, bv;
         try {
             av = eval(a);
-        } catch (e) {
+        } catch (/**@type{*}*/e) {
             exception = e;
         }
         bv = eval(b);
@@ -173,7 +341,7 @@ core.UnitTestRunner = function UnitTestRunner() {
         var exception, av;
         try {
             av = eval(a);
-        } catch (e) {
+        } catch (/**@type{*}*/e) {
             exception = e;
         }
 
@@ -193,11 +361,59 @@ core.UnitTestRunner = function UnitTestRunner() {
     function shouldBeNull(t, a) {
         shouldBe(t, a, "null");
     }
+
+    /**
+     * @param {!Object} a
+     * @param {!Object} b
+     * @return {!boolean}
+     */
+    areObjectsEqual = function (a, b) {
+        var akeys = Object.keys(a),
+            bkeys = Object.keys(b);
+        akeys.sort();
+        bkeys.sort();
+        return areArraysEqual(akeys, bkeys)
+            && Object.keys(a).every(function (key) {
+                var /**@type{*}*/
+                    aval = a[key],
+                    /**@type{*}*/
+                    bval = b[key];
+                if (!isResultCorrect(aval, bval)) {
+                    testFailed(aval + " should be " + bval + " for key " + key);
+                    return false;
+                }
+                return true;
+            });
+    };
+
+    this.areNodesEqual = areNodesEqual;
     this.shouldBeNull = shouldBeNull;
     this.shouldBeNonNull = shouldBeNonNull;
     this.shouldBe = shouldBe;
+    /**
+     * @return {!number}
+     */
     this.countFailedTests = function () {
         return failedTests;
+    };
+    /**
+     * @param {!Array.<T>} functions
+     * @return {!Array.<!{f:T,name:string}>}
+     * @template T
+     */
+    this.name = function (functions) {
+        var i, fname,
+            nf = [],
+            l = functions.length;
+        nf.length = l;
+        for (i = 0; i < l; i += 1) {
+            fname = Runtime.getFunctionName(functions[i]) || "";
+            if (fname === "") {
+                throw "Found a function without a name.";
+            }
+            nf[i] = {f: functions[i], name: fname};
+        }
+        return nf;
     };
 };
 
@@ -206,23 +422,42 @@ core.UnitTestRunner = function UnitTestRunner() {
  */
 core.UnitTester = function UnitTester() {
     "use strict";
-    var failedTests = 0,
+    var /**@type{!number}*/
+        failedTests = 0,
         results = {};
     /**
-     * @param {Function} TestClass the constructor for the test class
+     * @param {!string} text
+     * @param {!string} code
+     * @return {!string}
+     **/
+    function link(text, code) {
+        return "<span style='color:blue;cursor:pointer' onclick='" + code + "'>"
+            + text + "</span>";
+    }
+    /**
+     * Run the tests from TestClass.
+     * If parameter testNames is supplied only the tests with the names
+     * supplied in that array will be executed.
+     *
+     * @param {!function(new:core.UnitTest,core.UnitTestRunner)} TestClass
+     *              The constructor for the test class.
      * @param {!function():undefined} callback
+     * @param {!Array.<!string>} testNames
      * @return {undefined}
      */
-    this.runTests = function (TestClass, callback) {
-        var testName = Runtime.getFunctionName(TestClass),
+    this.runTests = function (TestClass, callback, testNames) {
+        var testName = Runtime.getFunctionName(TestClass) || "",
+            /**@type{!string}*/
             tname,
             runner = new core.UnitTestRunner(),
             test = new TestClass(runner),
             testResults = {},
             i,
+            /**@type{function()|function(function())}*/
             t,
             tests,
-            lastFailCount;
+            lastFailCount,
+            inBrowser = runtime.type() === "BrowserRuntime";
 
         // check that this test has not been run or started yet
         if (results.hasOwnProperty(testName)) {
@@ -230,18 +465,37 @@ core.UnitTester = function UnitTester() {
             return;
         }
 
-        runtime.log("Running " + testName + ": " + test.description());
+        if (inBrowser) {
+            runtime.log("<span>Running "
+                + link(testName, "runSuite(\"" + testName + "\");")
+                + ": " + test.description() + "</span>");
+        } else {
+            runtime.log("Running " + testName + ": " + test.description);
+        }
         tests = test.tests();
         for (i = 0; i < tests.length; i += 1) {
-            t = tests[i];
-            tname = Runtime.getFunctionName(t);
-            runtime.log("Running " + tname);
+            t = tests[i].f;
+            tname = tests[i].name;
+            if (testNames.length && testNames.indexOf(tname) === -1) {
+                continue;
+            }
+            if (inBrowser) {
+                runtime.log("<span>Running "
+                    + link(tname, "runTest(\"" + testName + "\",\""
+                                  + tname + "\")") + "</span>");
+            } else {
+                runtime.log("Running " + tname);
+            }
             lastFailCount = runner.countFailedTests();
             test.setUp();
             t();
             test.tearDown();
             testResults[tname] = lastFailCount === runner.countFailedTests();
         }
+        /**
+         * @param {!Array.<!core.NamedAsyncFunction>} todo
+         * @return {undefined}
+         */
         function runAsyncTests(todo) {
             if (todo.length === 0) {
                 results[testName] = testResults;
@@ -249,14 +503,14 @@ core.UnitTester = function UnitTester() {
                 callback();
                 return;
             }
-            t = todo[0];
-            var tname = Runtime.getFunctionName(t);
-            runtime.log("Running " + tname);
+            t = todo[0].f;
+            var fname = todo[0].name;
+            runtime.log("Running " + fname);
             lastFailCount = runner.countFailedTests();
             test.setUp();
             t(function () {
                 test.tearDown();
-                testResults[tname] = lastFailCount ===
+                testResults[fname] = lastFailCount ===
                     runner.countFailedTests();
                 runAsyncTests(todo.slice(1));
             });

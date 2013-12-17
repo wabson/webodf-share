@@ -8,6 +8,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -28,7 +31,7 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
 /*global runtime, odf*/
 runtime.loadClass("odf.OdfCanvas");
@@ -41,7 +44,7 @@ odf.CommandLineTools = function CommandLineTools() {
      * @param {!string} inputfilepath
      * @param {!string} outputfilepath
      * @param {!function(string=):undefined} callback
-     * @return {undefined}
+     * @return {!odf.OdfContainer}
      */
     this.roundTrip = function (inputfilepath, outputfilepath, callback) {
         function onready(odfcontainer) {
@@ -57,6 +60,7 @@ odf.CommandLineTools = function CommandLineTools() {
             }
         }
         var odfcontainer = new odf.OdfContainer(inputfilepath, onready);
+        return odfcontainer;
     };
     /**
      * @param {!string} inputfilepath

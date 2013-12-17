@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright (C) 2012 KO GmbH <copyright@kogmbh.com>
+ * Copyright (C) 2012-2013 KO GmbH <copyright@kogmbh.com>
  *
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
@@ -9,6 +9,9 @@
  * the License, or (at your option) any later version.  The code is distributed
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
  *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
@@ -30,15 +33,16 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
-/*global core, ops, runtime*/
+
+/*global ops*/
 
 /**
  * @constructor
  * @implements ops.Operation
  */
-ops.OpAddCursor = function OpAddCursor(session) {
+ops.OpAddCursor = function OpAddCursor() {
     "use strict";
 
     var memberid, timestamp;
@@ -48,11 +52,20 @@ ops.OpAddCursor = function OpAddCursor(session) {
         timestamp = data.timestamp;
     };
 
-    this.execute = function (rootNode) {
-        var odtDocument = session.getOdtDocument(),
-            cursor = new ops.OdtCursor(memberid, odtDocument);
+    this.isEdit = false;
+
+    this.execute = function (odtDocument) {
+        var cursor = odtDocument.getCursor(memberid);
+
+        // there should be none
+        if (cursor) {
+            return false;
+        }
+
+        cursor = new ops.OdtCursor(memberid, odtDocument);
         odtDocument.addCursor(cursor);
-        session.emit(ops.SessionImplementation.signalCursorAdded, cursor);
+        odtDocument.emit(ops.OdtDocument.signalCursorAdded, cursor);
+        return true;
     };
 
     this.spec = function () {

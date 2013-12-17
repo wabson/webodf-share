@@ -9,6 +9,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -29,86 +32,105 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
 /*global define,require,document */
-define("webodf/editor/widgets/fontPicker", [], function () {
-    "use strict";
-    /**
-     * @constructor
-     */
-    var FontPicker = function (editorSession, callback) {
-        var self = this,
-            select;
+define("webodf/editor/widgets/fontPicker", [
+    "dijit/form/Select"],
 
-        this.widget = function () {
-            return select;
-        };
+    function (Select) {
+        "use strict";
 
-        this.value = function () {
-            return select.get('value');
-        };
-
-        this.setValue = function (value) {
-            select.set('value', value);
-        };
-
-        // events
-        this.onAdd = null;
-        this.onRemove = null;
-
-        function populateFonts() {
-            var i,
+        /**
+         * @constructor
+         */
+        var FontPicker = function (callback) {
+            var self = this,
+                editorSession,
+                select,
                 editorFonts = [],
                 documentFonts = [],
                 selectionList = [];
 
-            editorFonts = editorSession.availableFonts;
-            documentFonts = editorSession.getDeclaredFonts();
-
-            // First populate the fonts used in the document
-            for (i = 0; i < documentFonts.length; i += 1) {
-                selectionList.push({
-                    label: '<span style="font-family: ' + documentFonts[i].family + ';">' + documentFonts[i].name + '</span>',
-                    value: documentFonts[i].name
-                });
-            }
-            // Then add a separator
-            selectionList.push({
-                type: 'separator'
+            select = new Select({
+                name: 'FontPicker',
+                maxHeight: 200,
+                style: {
+                    width: '150px'
+                }
             });
-            // Lastly populate the fonts provided by the editor
-            for (i = 0; i < editorFonts.length; i += 1) {
-                selectionList.push({
-                    label: '<span style="font-family: ' + editorFonts[i] + ';">' + editorFonts[i] + '</span>',
-                    value: editorFonts[i]
-                });
-            }
 
-            select.removeOption(select.getOptions());
-            select.addOption(selectionList);
-        }
+            this.widget = function () {
+                return select;
+            };
 
-        function init(cb) {
-            require(["dijit/form/Select"], function (Select) {
-                select = new Select({
-                    name: 'FontPicker',
-                    maxHeight: 200,
-                    style: {
-                        width: '100px'
+            this.value = function () {
+                return select.get('value');
+            };
+
+            this.setValue = function (value) {
+                select.set('value', value);
+            };
+
+            /**
+             * Returns the font family for a given font name. If unavailable,
+             * return the name itself (e.g. editor fonts won't have a name-family separation
+             * @param {!string} name
+             * @return {!string}
+             */
+            this.getFamily = function (name) {
+                var i;
+                for (i = 0; i < documentFonts.length; i += 1) {
+                    if ((documentFonts[i].name === name) && documentFonts[i].family) {
+                        return documentFonts[i].family;
                     }
-                });
+                }
+                return name;
+            };
+            // events
+            this.onAdd = null;
+            this.onRemove = null;
 
+            function populateFonts() {
+                var i, name, family;
+                editorFonts = editorSession ? editorSession.availableFonts : [];
+                documentFonts = editorSession ? editorSession.getDeclaredFonts() : [];
+
+                // First populate the fonts used in the document
+                for (i = 0; i < documentFonts.length; i += 1) {
+                    name = documentFonts[i].name;
+                    family = documentFonts[i].family || name;
+                    selectionList.push({
+                        label: '<span style="font-family: ' + family + ';">' + name + '</span>',
+                        value: name
+                    });
+                }
+                if (editorFonts.length) {
+                    // Then add a separator
+                    selectionList.push({
+                        type: 'separator'
+                    });
+                }
+                // Lastly populate the fonts provided by the editor
+                for (i = 0; i < editorFonts.length; i += 1) {
+                    selectionList.push({
+                        label: '<span style="font-family: ' + editorFonts[i] + ';">' + editorFonts[i] + '</span>',
+                        value: editorFonts[i]
+                    });
+                }
+
+                select.removeOption(select.getOptions());
+                select.addOption(selectionList);
+            }
+
+            this.setEditorSession = function(session) {
+                editorSession = session;
                 populateFonts();
+            };
 
-                return cb();
-            });
-        }
+            populateFonts();
+            callback(self);
+        };
 
-        init(function () {
-            return callback(self);
-        });
-    };
-
-    return FontPicker;
+        return FontPicker;
 });

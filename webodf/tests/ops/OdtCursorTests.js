@@ -8,6 +8,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -28,9 +31,9 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
-/*global runtime, core, gui, ops, odf*/
+/*global Node, runtime, core, gui, ops, odf, NodeFilter*/
 runtime.loadClass("odf.OdfCanvas");
 runtime.loadClass("ops.OdtCursor");
 runtime.loadClass("ops.OdtDocument");
@@ -43,8 +46,7 @@ runtime.loadClass("ops.OdtDocument");
 ops.OdtCursorTests = function OdtCursorTests(runner) {
     "use strict";
     var r = runner, t, domDocument = runtime.getWindow().document, testarea,
-        odfxml =
-          '<text:sequence-decls>\n'
+        odfxml = '<text:sequence-decls>\n'
         + '  <text:sequence-decl text:display-outline-level="0" text:name="Illustration"/>\n'
         + '  <text:sequence-decl text:display-outline-level="0" text:name="Table"/>\n'
         + '  <text:sequence-decl text:display-outline-level="0" text:name="Text"/>\n'
@@ -59,76 +61,142 @@ ops.OdtCursorTests = function OdtCursorTests(runner) {
         + '</text:section>',
         odfxml2 = '<p>a </p>',
         odfxml3 = '<p>  a  b</p>',
-        odfxml4 =
-          '<text:section>\n'
+        odfxml4 = '<text:section>\n'
         + '  <text:p/>\n'
         + '</text:section>',
-        dummyfilter = function acceptPosition(p) {
-            t.pos.push({
-                c: p.container(),
-                o: p.offset()
-            });
-            return 1;
-        },
-        textfilter = function acceptPosition(iterator) {
-            var n = iterator.container(), p, o, d;
-            // only stop in text nodes or at end of <p> or <h>
-            if (n.nodeType !== 3) {
-                if (n.localName !== "p" && n.localName !== "h") {
-                    return 2;
-                }
-                t.pos.push({
-                    c: iterator.container(),
-                    o: iterator.offset()
-                });
-                return 1;
+        dummyfilter,
+        textfilter;
+    function createWalker(iterator) {
+        var document = iterator.getCurrentNode().ownerDocument,
+            walker = document.createTreeWalker(t.odtDocument.getRootNode(), NodeFilter.SHOW_ALL, iterator.getNodeFilter(), false);
+
+        walker.currentNode = iterator.getCurrentNode();
+        return walker;
+    }
+
+    /**
+     * Return the offset as it would be if all neighboring text nodes were one
+     * text node.
+     * @return {!number}
+     */
+    function textOffset(iterator) {
+        var walker = createWalker(iterator),
+            offset = iterator.unfilteredDomOffset();
+        if (walker.currentNode.nodeType !== Node.TEXT_NODE) {
+            return 0;
+        }
+        // add lengths of preceding textnodes
+        while (walker.previousSibling() && walker.currentNode.nodeType === Node.TEXT_NODE) {
+            offset += walker.currentNode.length;
+        }
+        return offset;
+    }
+    /**
+     * This returns the local text neighborhood as seen from the current
+     * position, which is an ordered array of all sibling text nodes, from
+     * left to right.
+     * @return {Array.<Node>}
+     */
+    function textNeighborhood(iterator) {
+        var walker = createWalker(iterator),
+            neighborhood = [];
+        if (walker.currentNode.nodeType !== Node.TEXT_NODE) {
+            return neighborhood;
+        }
+        while (walker.previousSibling()) {
+            if (walker.currentNode.nodeType !== Node.TEXT_NODE) {
+                walker.nextSibling();
+                break;
             }
-            if (n.length === 0) {
-                return 2;
-            }
-            // only stop in text nodes in 'p', 'h' or 'span' elements
-            p = n.parentNode;
-            o = p && p.localName;
-            if (o !== "p" && o !== "span" && o !== "h") {
-                return 2;
-            }
-            // do not stop between spaces
-            o = iterator.textOffset();
-            if (o > 0 && iterator.substr(o - 1, 2) === "  ") {
+        }
+        do {
+            neighborhood.push(walker.currentNode);
+        } while (walker.nextSibling() && walker.currentNode.nodeType === Node.TEXT_NODE);
+        return neighborhood;
+    }
+    /**
+     * This returns the text string from the current neighborhood as if
+     * all the neighboring text nodes were one
+     * @return {!string}
+     */
+    function getText(iterator) {
+        var i,
+            data = "",
+            neighborhood = textNeighborhood(iterator);
+
+        for (i = 0; i < neighborhood.length; i += 1) {
+            data += neighborhood[i].data;
+        }
+
+        return data;
+    }
+    dummyfilter = function acceptPosition(p) {
+        t.pos.push({
+            c: p.container(),
+            o: p.unfilteredDomOffset()
+        });
+        return 1;
+    };
+    textfilter = function acceptPosition(iterator) {
+        var n = iterator.container(), p, o;
+        // only stop in text nodes or at end of <p> or <h>
+        if (n.nodeType !== Node.TEXT_NODE) {
+            if (n.localName !== "p" && n.localName !== "h") {
                 return 2;
             }
             t.pos.push({
                 c: iterator.container(),
-                o: iterator.offset()
+                o: iterator.unfilteredDomOffset()
             });
             return 1;
-        };
+        }
+        if (n.length === 0) {
+            return 2;
+        }
+        // only stop in text nodes in 'p', 'h' or 'span' elements
+        p = n.parentNode;
+        o = p && p.localName;
+        if (o !== "p" && o !== "span" && o !== "h") {
+            return 2;
+        }
+        // do not stop between spaces
+        o = textOffset(iterator);
+        if (o > 0 && getText(iterator).substr(o - 1, 2) === "  ") {
+            return 2;
+        }
+        t.pos.push({
+            c: iterator.container(),
+            o: iterator.unfilteredDomOffset()
+        });
+        return 1;
+    };
     dummyfilter.acceptPosition = dummyfilter;
     textfilter.acceptPosition = textfilter;
 
     this.setUp = function () {
-        var odfContainer,
-            odfcanvas;
+        var odfContainer;
         t = {};
         testarea = core.UnitTest.provideTestAreaDiv();
-        odfcanvas = new odf.OdfCanvas(testarea);
+        t.odfcanvas = new odf.OdfCanvas(testarea);
         odfContainer = new odf.OdfContainer("", null);
-        odfcanvas.setOdfContainer(odfContainer);
-        t.odtDocument = new ops.OdtDocument(odfcanvas);
+        t.odfcanvas.setOdfContainer(odfContainer);
+        t.odtDocument = new ops.OdtDocument(t.odfcanvas);
     };
     this.tearDown = function () {
+        t.odfcanvas.destroy(function () { return; });
         t = {};
         core.UnitTest.cleanupTestAreaDiv();
     };
+
     /**
      * @param {!Element} root
      * @return {undefined}
      */
     function splitTextNodes(root) {
-        var iterator = root.ownerDocument.createNodeIterator(root, 0xFFFFFFFF),
+        var iterator = root.ownerDocument.createNodeIterator(root, 0xFFFFFFFF, null, false),
             n = iterator.nextNode();
         while (n !== null) {
-            if (n.nodeType === 3 && n.data.length > 1) {
+            if (n.nodeType === Node.TEXT_NODE && n.data.length > 1) {
                 n.splitText(1);
             }
             n = iterator.nextNode();
@@ -140,9 +208,8 @@ ops.OdtCursorTests = function OdtCursorTests(runner) {
      */
     function insertEmptyTextNodes(root) {
         var doc = root.ownerDocument,
-            iterator = doc.createNodeIterator(root, 0xFFFFFFFF),
-            n = iterator.nextNode(),
-            count = 0;
+            iterator = doc.createNodeIterator(root, 0xFFFFFFFF, null, false),
+            n = iterator.nextNode();
         while (n !== null) {
             if (n !== root) {
                 n.parentNode.insertBefore(doc.createTextNode(''), n);
@@ -186,57 +253,72 @@ ops.OdtCursorTests = function OdtCursorTests(runner) {
         }
         t.cursor = new ops.OdtCursor("id", t.odtDocument);
     }
+    function surroundingText(cursor) {
+        var previousSibling = cursor.getNode().previousSibling,
+            nextSibling = cursor.getNode().nextSibling,
+            text = "";
+        if (previousSibling && previousSibling.nodeType === Node.TEXT_NODE) {
+            text += previousSibling.data;
+        }
+        if (nextSibling && nextSibling.nodeType === Node.TEXT_NODE) {
+            text += nextSibling.data;
+        }
+
+        return text;
+    }
     function create() {
         createOdtCursor();
-        var s = t.cursor.getSelection();
-        t.rangeCount = s.rangeCount;
-        r.shouldBe(t, "t.rangeCount", "1");
-        t.focusOffset = s.focusOffset;
-        r.shouldBe(t, "t.focusOffset", "0");
-        t.focusNode = s.focusNode;
-        r.shouldBeNonNull(t, "t.focusNode");
+        t.range = t.cursor.getSelectedRange();
+        r.shouldBeNonNull(t, "t.range");
+        r.shouldBe(t, "t.range.startOffset", "0");
+        r.shouldBeNonNull(t, "t.range.startContainer");
     }
     function moveInEmptyDoc() {
         createOdtCursor("");
-        var s = t.cursor.getSelection();
-        t.startNode = s.focusNode;
+        t.range = t.cursor.getSelectedRange();
+        t.originalStartContainer = t.range.startContainer;
+        t.originalStartOffset = t.range.startOffset;
         t.cursor.move(1);
-        t.focusOffset = s.focusOffset;
-        t.focusNode = s.focusNode;
-        r.shouldBe(t, "t.focusOffset", "0");
-        r.shouldBe(t, "t.startNode", "t.focusNode");
+        t.range = t.cursor.getSelectedRange();
+        r.shouldBe(t, "t.range.startOffset", "t.originalStartOffset");
+        r.shouldBe(t, "t.range.startContainer", "t.originalStartContainer");
     }
     function moveInSimpleDoc() {
         createOdtCursor("hello");
-        var s = t.cursor.getSelection(),
-            i;
-        t.startNode = s.focusNode;
+        var i;
+
+        t.originalSurroundingText = surroundingText(t.cursor);
+
         for (i = 1; i <= 4; i += 1) {
+            t.oldSurroundingText = surroundingText(t.cursor);
+            t.oldLength = t.cursor.getNode().nextSibling.length;
             t.cursor.move(1);
-            t.focusOffset = s.focusOffset;
-            t.focusNode = s.focusNode;
-            r.shouldBe(t, "t.focusOffset", i.toString());
-            r.shouldBe(t, "t.focusNode", "t.startNode");
+            t.newSurroundingText = surroundingText(t.cursor);
+            t.newLength = t.cursor.getNode().nextSibling.length;
+            r.shouldBe(t, "t.oldLength", "t.newLength + 1");
+            r.shouldBe(t, "t.oldSurroundingText", "t.newSurroundingText");
         }
         t.cursor.move(1);
-        t.focusOffset = s.focusOffset;
-        t.focusNode = s.focusNode;
-        r.shouldBe(t, "t.focusOffset", "1");
-        r.shouldBe(t, "t.focusNode", "t.startNode.parentNode");
-        // try to go behind the last char
+        t.newSurroundingText = surroundingText(t.cursor);
+        r.shouldBe(t, "t.originalSurroundingText", "t.newSurroundingText");
+
+        // try to go beyond the last position
         t.cursor.move(1);
-        r.shouldBe(t, "t.focusOffset", "1");
-        r.shouldBe(t, "t.focusNode", "t.startNode.parentNode");
-        for (i = 4; i >= 0; i -= 1) {
+        t.newSurroundingText = surroundingText(t.cursor);
+        r.shouldBe(t, "t.originalSurroundingText", "t.newSurroundingText");
+
+        for (i = 4; i >= 1; i -= 1) {
+            t.oldSurroundingText = surroundingText(t.cursor);
+            t.oldLength = t.cursor.getNode().previousSibling.length;
             t.cursor.move(-1);
-            t.focusOffset = s.focusOffset;
-            t.focusNode = s.focusNode;
-            r.shouldBe(t, "t.focusOffset", i.toString());
-            r.shouldBe(t, "t.focusNode", "t.startNode");
+            t.newSurroundingText = surroundingText(t.cursor);
+            t.newLength = t.cursor.getNode().previousSibling.length;
+            r.shouldBe(t, "t.oldLength", "t.newLength + 1");
+            r.shouldBe(t, "t.oldSurroundingText", "t.newSurroundingText");
         }
-        t.cursor.move(1);
-        r.shouldBe(t, "t.focusOffset", "0");
-        r.shouldBe(t, "t.focusNode", "t.startNode");
+        t.cursor.move(-1);
+        t.newSurroundingText = surroundingText(t.cursor);
+        r.shouldBe(t, "t.originalSurroundingText", "t.newSurroundingText");
     }
     /**
      * Start at a valid position and count how many filtered steps are needed.
@@ -244,49 +326,54 @@ ops.OdtCursorTests = function OdtCursorTests(runner) {
      * starting position.
      */
     function stepCounter(xml, n, m, filter) {
-        var steps, s, e;
+        var steps, s;
         t.pos = [];
         createOdtCursor(xml, true, true);
-        s = t.cursor.getSelection();
+        s = t.cursor.getSelectedRange();
         t.counter = t.cursor.getStepCounter();
 
         // move to a valid position
-        t.startFocusOffset = s.focusOffset;
-        t.startFocusNode = s.focusNode;
-        t.startText = s.focusNode.data;
-        t.focusOffset = s.focusOffset;
-        t.focusNode = s.focusNode;
-        t.text = s.focusNode.data;
-        steps = t.counter.countForwardSteps(n, filter);
+        t.initialStartOffset = s.startOffset;
+        t.initialStartContainer = s.startContainer;
+        t.startText = s.startContainer.data;
+        t.startOffset = s.startOffset;
+        t.startContainer = s.startContainer;
+        t.text = s.startContainer.data;
+
+        steps = t.counter.countSteps(n, filter);
         r.shouldBe(t, steps.toString(), m.toString());
-        t.focusOffset2 = s.focusOffset;
-        t.focusNode2 = s.focusNode;
-        t.text2 = s.focusNode.data;
-        r.shouldBe(t, "t.focusOffset", "t.focusOffset2");
-        r.shouldBe(t, "t.focusNode", "t.focusNode2");
+
+        s = t.cursor.getSelectedRange();
+        t.startOffset2 = s.startOffset;
+        t.startContainer2 = s.startContainer;
+        t.text2 = s.startContainer.data;
+        r.shouldBe(t, "t.startOffset", "t.startOffset2");
+        r.shouldBe(t, "t.startContainer", "t.startContainer2");
         r.shouldBe(t, "t.text", "t.text2");
 
         t.cursor.move(steps);
+        s = t.cursor.getSelectedRange();
+        t.startOffset = s.startOffset;
+        t.startContainer = s.startContainer;
+        t.text = s.startContainer.data;
 
-        t.focusOffset = s.focusOffset;
-        t.focusNode = s.focusNode;
-        t.text = s.focusNode.data;
-        steps = t.counter.countBackwardSteps(n, filter);
+        steps = -t.counter.countSteps(-n, filter);
         r.shouldBe(t, steps.toString(), m.toString());
-        t.focusOffset2 = s.focusOffset;
-        t.focusNode2 = s.focusNode;
-        t.text2 = s.focusNode.data;
-        r.shouldBe(t, "t.focusOffset", "t.focusOffset2");
-        r.shouldBe(t, "t.focusNode", "t.focusNode2");
+        s = t.cursor.getSelectedRange();
+        t.startOffset2 = s.startOffset;
+        t.startContainer2 = s.startContainer;
+        t.text2 = s.startContainer.data;
+        r.shouldBe(t, "t.startOffset", "t.startOffset2");
+        r.shouldBe(t, "t.startContainer", "t.startContainer2");
         r.shouldBe(t, "t.text", "t.text2");
 
         t.cursor.move(-steps);
-
-        t.focusOffset = s.focusOffset;
-        t.focusNode = s.focusNode;
-        t.text = s.focusNode.data;
-        r.shouldBe(t, "t.focusOffset", "t.startFocusOffset");
-        r.shouldBe(t, "t.focusNode", "t.startFocusNode");
+        s = t.cursor.getSelectedRange();
+        t.startOffset = s.startOffset;
+        t.startContainer = s.startContainer;
+        t.text = s.startContainer.data;
+        r.shouldBe(t, "t.startOffset", "t.initialStartOffset");
+        r.shouldBe(t, "t.startContainer", "t.initialStartContainer");
         r.shouldBe(t, "t.text", "t.startText");
     }
     function stepCounter1() {
@@ -312,19 +399,19 @@ ops.OdtCursorTests = function OdtCursorTests(runner) {
         t.counter = t.cursor.getStepCounter();
 
         // move to a valid position
-        steps = t.counter.countForwardSteps(1, filter);
+        steps = t.counter.countSteps(1, filter);
         t.cursor.move(steps);
-        steps = t.counter.countBackwardSteps(1, filter);
+        steps = -t.counter.countSteps(-1, filter);
         t.cursor.move(-steps);
         t.pos = [];
         t.stepsSum = 0;
         t.moveSum = 0;
         for (i = 1; i <= m; i += 1) {
-            steps = t.counter.countForwardSteps(1, filter);
+            steps = t.counter.countSteps(1, filter);
             t.stepsSum += Math.abs(steps);
             t.moveSum += Math.abs(t.cursor.move(steps));
         }
-        r.shouldBe(t, "t.counter.countForwardSteps(1, t.filter)", "0");
+        r.shouldBe(t, "t.counter.countSteps(1, t.filter)", "0");
         r.shouldBe(t, "t.pos.length", m.toString());
         r.shouldBe(t, "t.stepsSum", n.toString());
         r.shouldBe(t, "t.moveSum", n.toString());
@@ -333,11 +420,11 @@ ops.OdtCursorTests = function OdtCursorTests(runner) {
         t.stepsSum = 0;
         t.moveSum = 0;
         for (i = 1; i <= m; i += 1) {
-            steps = t.counter.countBackwardSteps(1, filter);
+            steps = -t.counter.countSteps(-1, filter);
             t.stepsSum += Math.abs(steps);
             t.moveSum += Math.abs(t.cursor.move(-steps));
         }
-        r.shouldBe(t, "t.counter.countBackwardSteps(1, t.filter)", "0");
+        r.shouldBe(t, "t.counter.countSteps(-1, t.filter)", "0");
         r.shouldBe(t, "t.pos.length", m.toString());
         r.shouldBe(t, "t.stepsSum", n.toString());
         r.shouldBe(t, "t.moveSum", n.toString());
@@ -383,7 +470,7 @@ ops.OdtCursorTests = function OdtCursorTests(runner) {
         backAndForth(odfxml4, 8, 8, dummyfilter);
     }
     this.tests = function () {
-        return [
+        return r.name([
             create,
             moveInEmptyDoc,
             moveInSimpleDoc,
@@ -398,7 +485,7 @@ ops.OdtCursorTests = function OdtCursorTests(runner) {
             backAndForth7,
             backAndForth8,
             backAndForth9
-        ];
+        ]);
     };
     this.asyncTests = function () {
         return [

@@ -9,6 +9,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -29,7 +32,7 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
 /*global runtime, xmldom*/
 runtime.loadClass("xmldom.RelaxNGParser");
@@ -131,7 +134,7 @@ function parseAttributes(e, att) {
     } else if (e.name === "data") {
         att.types.push(e.a.type);
     } else if (e.name === "list") {
-        name = null; // todo 
+        name = null; // todo
     } else if (e.name === "empty") {
         att.empty = true;
     } else {
@@ -285,13 +288,13 @@ function writeMembers(e, atts, optional) {
     } else if (e.name === "oneOrMore") {
         writeMembers(e.e[0], atts, optional);
     } else if (e.name === "value") {
-        name = null; // todo 
+        name = null; // todo
     } else if (e.name === "data") {
-        name = null; // todo 
+        name = null; // todo
     } else if (e.name === "text") {
         out("    void addTextNode(const QString& str) { xml->addTextNode(str); }");
     } else if (e.name === "empty") {
-        name = null; // todo 
+        name = null; // todo
     } else {
         runtime.log("OOPS " + e.name);
         throw null;

@@ -8,6 +8,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -28,13 +31,13 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
 /*global core*/
 /*jslint plusplus: true, bitwise: true */
 /**
  * @constructor
- * @param {!Runtime.ByteArray} data
+ * @param {!Uint8Array} data
  */
 core.ByteArray = function ByteArray(data) {
     "use strict";
@@ -43,26 +46,28 @@ core.ByteArray = function ByteArray(data) {
      */
     this.pos = 0;
     /**
-     * @type {!Runtime.ByteArray}
+     * @type {!Uint8Array}
      */
     this.data = data;
     /**
      * @return {number}
      */
     this.readUInt32LE = function () {
-        var data = this.data,
-            pos = (this.pos += 4);
-        return (data[--pos] << 24) |
-            (data[--pos] << 16) |
-            (data[--pos] <<  8) |
-            data[--pos];
+        this.pos += 4;
+        var d = this.data,
+            pos = this.pos;
+        return (d[--pos] << 24) |
+            (d[--pos] << 16) |
+            (d[--pos] <<  8) |
+            d[--pos];
     };
     /**
      * @return {number}
      */
     this.readUInt16LE = function () {
-        var data = this.data,
-            pos = (this.pos += 2);
-        return (data[--pos] << 8) | data[--pos];
+        this.pos += 2;
+        var d = this.data,
+            pos = this.pos;
+        return (d[--pos] << 8) | d[--pos];
     };
 };

@@ -8,6 +8,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -28,9 +31,9 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
-/*global runtime, ops*/
+/*global Node, runtime, ops*/
 
 runtime.loadClass("ops.Session");
 
@@ -71,7 +74,7 @@ function checkOperationsOnSession(session, operations) {
             runtime.log("operation " + operation.name + " is missing.");
             hasErrors = true;
         }
-            
+
     }
     return hasErrors;
 }
@@ -82,7 +85,7 @@ function parseOperation(element) {
         args = [],
         c = element.firstChild;
     while (c) {
-        if (c.nodeType === 1) {
+        if (c.nodeType === Node.ELEMENT_NODE) {
             if (c.localName === "argument") {
                 args.push({
                     name: c.getAttribute("name"),
@@ -103,7 +106,7 @@ function parseOperations(dom) {
     var e = dom.documentElement.firstChild,
         operations = [];
     while (e) {
-        if (e.nodeType === 1) {
+        if (e.nodeType === Node.ELEMENT_NODE) {
             if (e.localName === "operation") {
                 operations.push(parseOperation(e));
             } else {

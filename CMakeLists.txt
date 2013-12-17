@@ -7,9 +7,43 @@ if(WIN32)
 else()
     cmake_minimum_required(VERSION 2.8.2)
 endif(WIN32)
+include(ProcessorCount OPTIONAL RESULT_VARIABLE ProcessorCountFound)
+if (ProcessorCountFound)
+  ProcessorCount(NProcessors)
+else (ProcessorCountFound)
+  set(NProcessors 1)
+endif (ProcessorCountFound)
 
 # At this point, the version number that is used throughout is defined
-set(WEBODF_VERSION 0.4.2)
+# The version number is gotten from either the git repository or the name of the
+# folder. If the current folder has a name that matches "webodf-\d+.\d+.\d+"
+# then that version number is used. If not, the folder should be a git folder
+# and have ability to get a tag.
+# The third option is to accept the version as cmake-parameter from the
+# outside, which overwrites the other two alternatives.
+
+SET(OVERRULED_WEBODF_VERSION "" CACHE STRING "WebODF Version to overrule what WebODF would calclulate")
+if (OVERRULED_WEBODF_VERSION)
+  set(WEBODF_VERSION ${OVERRULED_WEBODF_VERSION})
+else (OVERRULED_WEBODF_VERSION)
+  string(REGEX MATCH "^.*/webodf-([0-9]+.[0-9]+.[0-9]+)$" WEBODF_VERSION "${CMAKE_CURRENT_SOURCE_DIR}")
+  if (CMAKE_MATCH_1)
+    set(WEBODF_VERSION ${CMAKE_MATCH_1})
+  else (CMAKE_MATCH_1)
+    # get version number from git
+    exec_program(git ${CMAKE_CURRENT_SOURCE_DIR}
+      ARGS describe --tags --dirty --match "v[0-9]*"
+      OUTPUT_VARIABLE GIT_WEBODF_VERSION)
+    # check version number from git
+    string(REGEX MATCH "^v([0-9]+.[0-9]+.[0-9]+(-[0-9]+-[0-9a-z]+(-dirty)?)?)$" CHECKED_WEBODF_VERSION "${GIT_WEBODF_VERSION}")
+    if (CMAKE_MATCH_1)
+      set(WEBODF_VERSION ${CMAKE_MATCH_1})
+    else (CMAKE_MATCH_1)
+      message(FATAL_ERROR "No valid version number found via git: ${GIT_WEBODF_VERSION}")
+    endif (CMAKE_MATCH_1)
+  endif (CMAKE_MATCH_1)
+endif (OVERRULED_WEBODF_VERSION)
+message(STATUS "WebODF version " ${WEBODF_VERSION})
 
 # This makefile 'compiles' WebODF using various tools, instruments the code and
 # builds and packages programs that use WebODF.
@@ -46,8 +80,8 @@ if(Java_JAVA_EXECUTABLE)
     ExternalProject_Add(
         ClosureCompiler
         DOWNLOAD_DIR ${EXTERNALS_DOWNLOAD_DIR}
-        URL "http://closure-compiler.googlecode.com/files/compiler-20121212.tar.gz"
-        URL_MD5 5382a18184ee4cc45cc6c92f06b74ebc
+        URL "http://dl.google.com/closure-compiler/compiler-20130823.tar.gz"
+        URL_MD5 105db24c4676e23f2495adfdea3159bc
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
         INSTALL_COMMAND ""
@@ -82,11 +116,12 @@ ExternalProject_Add(
 set(JSDOCDIR ${CMAKE_CURRENT_BINARY_DIR}/JsDoc-prefix/src/JsDoc/jsdoc-toolkit)
 
 # Node.JS
+set(NODEVERSION 0.10.20)
 if(WIN32)
     # On windows, it is significantly faster and more reliable to download
     # a pre-built 32-bit binary
-    set(NODE_BIN_URL "http://nodejs.org/dist/v0.8.19/node.exe")
-    set(NODE_BIN_MD5 "6f3979fffb38020a1e6c75ccb15c092f")
+    set(NODE_BIN_URL "http://nodejs.org/dist/v${NODEVERSION}/node.exe")
+    set(NODE_BIN_MD5 "3bc43fbbfcddc376d5769e9757bd0bca")
     file(DOWNLOAD "${NODE_BIN_URL}" "${EXTERNALS_DOWNLOAD_DIR}/node-download.exe"
         SHOW_PROGRESS
         EXPECTED_MD5 ${NODE_BIN_MD5}
@@ -106,10 +141,11 @@ else(WIN32)
         NodeJS
         PREFIX ${CMAKE_BINARY_DIR}/NodeJS-prefix
         DOWNLOAD_DIR ${EXTERNALS_DOWNLOAD_DIR}
-        URL "http://nodejs.org/dist/v0.8.14/node-v0.8.14.tar.gz"
-        URL_MD5 284fd2c7578064c339d9cf6a3a475ac7
+        URL "http://nodejs.org/dist/v${NODEVERSION}/node-v${NODEVERSION}.tar.gz"
+        URL_MD5 784e7d7a8e29dfec88ddb2e72a895407
         CONFIGURE_COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/NodeJS-prefix
         INSTALL_DIR ${CMAKE_BINARY_DIR}/NodeJS-prefix
+        BUILD_COMMAND make -j${NProcessors}
         BUILD_IN_SOURCE 1
     )
 
@@ -137,7 +173,8 @@ if(WIN32)
         TEST_COMMAND ""
     )
     set(JSCOVERAGE ${CMAKE_BINARY_DIR}/JSCoverage-prefix/src/JSCoverage/jscoverage)
-else(WIN32)
+elseif(APPLE)
+else()
     ExternalProject_Add(
         JSCoverage
         DOWNLOAD_DIR ${EXTERNALS_DOWNLOAD_DIR}
@@ -145,11 +182,12 @@ else(WIN32)
         URL_MD5 a70d79a6759367fbcc0bcc18d6866ff3
         PATCH_COMMAND  cat ${CMAKE_CURRENT_SOURCE_DIR}/JSCoverage.patch | patch -p0
         CONFIGURE_COMMAND "./configure"
+        BUILD_COMMAND make -j${NProcessors}
         BUILD_IN_SOURCE 1
         INSTALL_COMMAND ""
     )
     set(JSCOVERAGE ${CMAKE_BINARY_DIR}/JSCoverage-prefix/src/JSCoverage/jscoverage)
-endif(WIN32)
+endif()
 
 # Dojo
 ExternalProject_Add(
@@ -189,7 +227,7 @@ if(WIN32)
     ExternalProject_Add(
         AntBin
         DOWNLOAD_DIR ${EXTERNALS_DOWNLOAD_DIR}
-        URL "http://mirrors.enquira.co.uk/apache//ant/binaries/apache-ant-1.8.4-bin.zip"
+        URL "http://archive.apache.org/dist/ant/binaries/apache-ant-1.8.4-bin.zip"
         URL_MD5 ca632528c35b8a335edd4e2064f7129e
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
@@ -210,76 +248,121 @@ if (NOT ANDROID_SDK_DIR)
   endif()
 endif(NOT ANDROID_SDK_DIR)
 
-set(LIBJSFILES lib/packages.js lib/runtime.js lib/core/Base64.js
+set(LIBJSLICENSEFILE ${CMAKE_CURRENT_SOURCE_DIR}/AGPL-3.0.txt)
 
-    lib/core/RawDeflate.js
+# This list is generated automatically, do not edit this list by hand.
+set(TYPEDLIBJSFILES
+    ${CMAKE_CURRENT_BINARY_DIR}/webodf/webodfversion.js
+    lib/runtime.js
+    lib/core/Async.js
+    lib/core/Base64.js
     lib/core/ByteArray.js
     lib/core/ByteArrayWriter.js
-    lib/core/RawInflate.js
-    lib/core/Selection.js
-    lib/core/LoopWatchDog.js
-    lib/core/Cursor.js
-    lib/core/EditInfo.js
-    lib/core/UnitTester.js
-    lib/core/PositionIterator.js
-    lib/core/PositionFilter.js
-    lib/core/Async.js
-    lib/core/Zip.js
     lib/core/CSSUnits.js
-
+    lib/core/DomUtils.js
+    lib/core/EventNotifier.js
+    lib/core/LoopWatchDog.js
+    lib/core/PositionIterator.js
+    lib/core/RawInflate.js
+    lib/core/ScheduledTask.js
+    lib/core/UnitTester.js
+    lib/core/Utils.js
+    lib/core/Zip.js
+    lib/gui/Avatar.js
+    lib/gui/EditInfoHandle.js
+    lib/gui/KeyboardHandler.js
+    lib/odf/Namespaces.js
+    lib/odf/OdfUtils.js
+    lib/ops/Server.js
     lib/xmldom/LSSerializerFilter.js
-    lib/xmldom/LSSerializer.js
-    lib/xmldom/RelaxNGParser.js
-    lib/xmldom/RelaxNG.js
-    lib/xmldom/RelaxNG2.js
-    lib/xmldom/OperationalTransformInterface.js
-    lib/xmldom/OperationalTransformDOM.js
     lib/xmldom/XPath.js
-
-    lib/odf/StyleInfo.js
+    lib/core/Cursor.js
+    lib/core/PositionFilter.js
+    lib/core/PositionFilterChain.js
+    lib/gui/AnnotationViewManager.js
+    lib/gui/SelectionMover.js
+    lib/odf/OdfNodeFilter.js
     lib/odf/Style2CSS.js
-    lib/odf/FontLoader.js
+    lib/odf/StyleInfo.js
+    lib/odf/TextSerializer.js
+    lib/ops/TextPositionFilter.js
+    lib/xmldom/LSSerializer.js
+    lib/gui/Clipboard.js
     lib/odf/OdfContainer.js
+    lib/odf/FontLoader.js
+    lib/odf/ObjectNameGenerator.js
     lib/odf/Formatting.js
     lib/odf/OdfCanvas.js
-    lib/odf/CommandLineTools.js
-
-    lib/ops/Operation.js
-    lib/ops/OpAddCursor.js
-    lib/ops/OpRemoveCursor.js
-    lib/ops/OpMoveCursor.js
-    lib/ops/OpInsertText.js
-    lib/ops/OpRemoveText.js
-    lib/ops/OpSplitParagraph.js
-    lib/ops/OpSetParagraphStyle.js
-    lib/ops/OpUpdateParagraphStyle.js
-    lib/ops/OpCloneStyle.js
-    lib/ops/OpDeleteStyle.js
-    lib/ops/OperationFactory.js
-    lib/ops/OdtCursor.js
-    lib/gui/SelectionMover.js
-    lib/gui/Avatar.js
-    lib/gui/Caret.js
-    lib/gui/SessionController.js
-    lib/gui/SelectionManager.js
-    lib/ops/UserModel.js
-    lib/ops/TrivialUserModel.js
-    lib/ops/NowjsUserModel.js
-    lib/ops/TrivialOperationRouter.js
-    lib/ops/NowjsOperationRouter.js
-    lib/gui/EditInfoHandle.js
-    lib/gui/EditInfoMarker.js
-    lib/gui/SessionView.js
-    lib/gui/CaretFactory.js
-    lib/gui/PresenterUI.js
-    lib/gui/XMLEdit.js
-
-    lib/ops/SessionPointFilter.js
-    lib/ops/OdtDocument.js
-    lib/ops/Session.js
-    lib/ops/SessionImplementation.js
-
+    lib/odf/TextStyleApplicator.js
+    lib/gui/StyleHelper.js
 )
+# This list is generated automatically, do not edit this list by hand.
+set(UNTYPEDLIBJSFILES
+# These files depend only on files that are 100% typed.
+    lib/core/RawDeflate.js
+    lib/gui/HyperlinkClickHandler.js
+    lib/gui/ImageSelector.js
+    lib/odf/CommandLineTools.js
+    lib/ops/Member.js
+    lib/ops/StepsTranslator.js
+    lib/xmldom/RelaxNGParser.js
+# These files depend on files that are not 100% typed.
+    lib/ops/OdtCursor.js
+    lib/ops/OdtDocument.js
+    lib/ops/Operation.js
+    lib/xmldom/RelaxNG.js
+    lib/xmldom/RelaxNG2.js
+    lib/gui/Caret.js
+    lib/gui/EventManager.js
+    lib/gui/ShadowCursor.js
+    lib/gui/UndoManager.js
+    lib/gui/UndoStateRules.js
+    lib/ops/EditInfo.js
+    lib/ops/OpAddAnnotation.js
+    lib/ops/OpAddCursor.js
+    lib/ops/OpAddMember.js
+    lib/ops/OpAddStyle.js
+    lib/ops/OpApplyDirectStyling.js
+    lib/ops/OpApplyHyperlink.js
+    lib/ops/OpInsertImage.js
+    lib/ops/OpInsertTable.js
+    lib/ops/OpInsertText.js
+    lib/ops/OpMoveCursor.js
+    lib/ops/OpRemoveAnnotation.js
+    lib/ops/OpRemoveBlob.js
+    lib/ops/OpRemoveCursor.js
+    lib/ops/OpRemoveHyperlink.js
+    lib/ops/OpRemoveMember.js
+    lib/ops/OpRemoveStyle.js
+    lib/ops/OpRemoveText.js
+    lib/ops/OpSetBlob.js
+    lib/ops/OpSetParagraphStyle.js
+    lib/ops/OpSplitParagraph.js
+    lib/ops/OpUpdateMember.js
+    lib/ops/OpUpdateMetadata.js
+    lib/ops/OpUpdateParagraphStyle.js
+    lib/ops/OperationFactory.js
+    lib/ops/OperationRouter.js
+    lib/ops/OperationTransformMatrix.js
+    lib/ops/OperationTransformer.js
+    lib/ops/TrivialOperationRouter.js
+    lib/gui/EditInfoMarker.js
+    lib/gui/PlainTextPasteboard.js
+    lib/gui/SelectionView.js
+    lib/gui/SelectionViewManager.js
+    lib/gui/TrivialUndoManager.js
+    lib/ops/Session.js
+    lib/gui/AnnotationController.js
+    lib/gui/DirectParagraphStyler.js
+    lib/gui/DirectTextStyler.js
+    lib/gui/HyperlinkController.js
+    lib/gui/ImageManager.js
+    lib/gui/TextManipulator.js
+    lib/gui/SessionController.js
+    lib/gui/CaretManager.js
+    lib/gui/SessionView.js
+)
+set(LIBJSFILES ${TYPEDLIBJSFILES} ${UNTYPEDLIBJSFILES})
 
 set(HTML5UIFILES
   app/app.js
@@ -305,13 +388,14 @@ set (RUNTIME ${CMAKE_CURRENT_SOURCE_DIR}/webodf/lib/runtime.js)
 
 macro(COPY_FILES _varname _srcdir _tgtdir)
   foreach(_file ${ARGN})
-    GET_FILENAME_COMPONENT(_subdir ${_file} PATH)
-    FILE(MAKE_DIRECTORY ${_tgtdir}/${_subdir})
     if (IS_ABSOLUTE ${_file})
+      SET(_subdir "")
       SET(_srcfile ${_file})
     else (IS_ABSOLUTE ${_file})
+      GET_FILENAME_COMPONENT(_subdir ${_file} PATH)
       SET(_srcfile ${_srcdir}/${_file})
     endif (IS_ABSOLUTE ${_file})
+    FILE(MAKE_DIRECTORY ${_tgtdir}/${_subdir})
     add_custom_command(
       OUTPUT ${_tgtdir}/${_file}
       COMMAND ${CMAKE_COMMAND} ARGS -E copy_if_different
@@ -324,34 +408,52 @@ macro(COPY_FILES _varname _srcdir _tgtdir)
   endforeach(_file)
 endmacro(COPY_FILES _directory _files)
 
+set (VIEWERBUILDDIR ${CMAKE_CURRENT_BINARY_DIR}/viewer)
+set (WORDPRESSZIPDIR ${CMAKE_CURRENT_BINARY_DIR}/webodf-wordpress-${WEBODF_VERSION})
+set (WORDPRESSZIP ${WORDPRESSZIPDIR}.zip)
+set(WEBODFXPIDIR ${CMAKE_CURRENT_BINARY_DIR}/webodf-${WEBODF_VERSION})
+set(WEBODFXPI ${WEBODFXPIDIR}.xpi)
+
 add_subdirectory(webodf)
 add_subdirectory(programs)
 
 # package webodf
 set(WEBODFZIP webodf-${WEBODF_VERSION}.zip)
-set(WEBODFZIP_FILES
-  ${CMAKE_CURRENT_BINARY_DIR}/webodf/webodf-debug.js
-  ${CMAKE_CURRENT_BINARY_DIR}/webodf/webodf.js
-  ${CMAKE_CURRENT_SOURCE_DIR}/webodf/webodf.css
-)
+set(WEBODFZIPDIR ${CMAKE_CURRENT_BINARY_DIR}/webodf-${WEBODF_VERSION})
 add_custom_command(
     OUTPUT ${WEBODFZIP}
+    COMMAND ${CMAKE_COMMAND} -E remove_directory ${WEBODFZIPDIR}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${WEBODFZIPDIR}
+    COMMAND ${CMAKE_COMMAND} -E copy ${LIBJSLICENSEFILE} ${WEBODFZIPDIR}
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/programs/viewer/README-viewer.odt ${WEBODFZIPDIR}/README.odt
+    # viewer
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${VIEWERBUILDDIR} ${WEBODFZIPDIR}/viewer
+    # editor
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_BINARY_DIR}/programs/editor ${WEBODFZIPDIR}/editor
+    COMMAND ${CMAKE_COMMAND} -E remove_directory ${WEBODFZIPDIR}/editor/dojo-deps
+    # benchmark
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_BINARY_DIR}/programs/benchmark ${WEBODFZIPDIR}/benchmark
+    # wordpressplugin
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/programs/wordpressplugin/readme.txt ${WEBODFZIPDIR}/wordpressplugin-readme.txt
+    COMMAND ${CMAKE_COMMAND} -E copy ${WORDPRESSZIP} ${WEBODFZIPDIR}
+
+    # firefox
+    COMMAND ${CMAKE_COMMAND} -E copy ${WEBODFXPI} ${WEBODFZIPDIR}
+
     # zip using javascript code running in node.js
-    COMMAND ${NODE} ARGS webodf/lib/runtime.js packwebodf.js
+    COMMAND ${NODE} ARGS webodf/lib/runtime.js ${CMAKE_CURRENT_SOURCE_DIR}/webodf/tools/zipdir.js
+        ${WEBODFZIPDIR}
         ${CMAKE_CURRENT_BINARY_DIR}/${WEBODFZIP}
-#input files
-        ${WEBODFZIP_FILES}
-#output files
-        webodf-debug.js
-        webodf.js
-        webodf.css
-    DEPENDS NodeJS
-        packwebodf.js
-        ${WEBODFZIP_FILES}
-        webodf-debug.js
-        webodf.js
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    DEPENDS
+        wordpress-target
+        webodf-debug.js-target
+        webodf.js-target
+        editor-compiled.js-target
+        html-benchmark
+        viewer-minimized.js-target
+        firefoxextension-target
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
-add_custom_target(zip ALL DEPENDS ${WEBODFZIP})
+add_custom_target(zip DEPENDS ${WEBODFZIP})
 
 # vim:expandtab

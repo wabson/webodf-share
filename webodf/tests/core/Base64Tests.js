@@ -8,6 +8,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -28,9 +31,9 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
-/*global core, runtime*/
+/*global core, runtime, Uint8Array, ArrayBuffer*/
 runtime.loadClass("core.Base64");
 /**
  * @constructor
@@ -42,11 +45,13 @@ core.Base64Tests = function Base64Tests(runner) {
     var t, r = runner, base64 = new core.Base64();
 
     function testConvertByteArrayToBase64() {
-        t.encoded = base64.convertByteArrayToBase64([65]);
+        var a = new Uint8Array(new ArrayBuffer(3));
+        a[0] = a[1] = a[2] = 65;
+        t.encoded = base64.convertByteArrayToBase64(a.subarray(0, 1));
         r.shouldBe(t, "t.encoded", "'QQ=='");
-        t.encoded = base64.convertByteArrayToBase64([65, 65]);
+        t.encoded = base64.convertByteArrayToBase64(a.subarray(0, 2));
         r.shouldBe(t, "t.encoded", "'QUE='");
-        t.encoded = base64.convertByteArrayToBase64([65, 65, 65]);
+        t.encoded = base64.convertByteArrayToBase64(a);
         r.shouldBe(t, "t.encoded", "'QUFB'");
     }
 
@@ -91,13 +96,13 @@ core.Base64Tests = function Base64Tests(runner) {
         t = {};
     };
     this.tests = function () {
-        return [
+        return r.name([
             testConvertByteArrayToBase64,
             testToBase64
-        ];
+        ]);
     };
     this.asyncTests = function () {
-        return [ testConvertUTF8StringToUTF16String ];
+        return r.name([ testConvertUTF8StringToUTF16String ]);
     };
     this.description = function () {
         return "Test the Base64 class.";

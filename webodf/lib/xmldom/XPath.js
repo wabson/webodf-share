@@ -8,6 +8,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -28,17 +31,44 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
-/*global xmldom, XPathResult, runtime*/
+/*global Node, xmldom, XPathResult, runtime*/
+/*jslint emptyblock: true*/
 /**
- * Wrapper for XPath functions
- * @constructor
- * @return {?}
+ * Iterator over nodes uses in the xpath implementation
+ * @class
+ * @interface
  */
-xmldom.XPath = (function () {
+xmldom.XPathIterator = function XPathIterator() {"use strict"; };
+/**
+ * @return {?Node}
+ */
+xmldom.XPathIterator.prototype.next = function () {"use strict"; };
+/**
+ * @return {undefined}
+ */
+xmldom.XPathIterator.prototype.reset = function () {"use strict"; };
+/*jslint emptyblock: false*/
+
+/**
+ * @typedef{{
+    steps: !Array.<{
+        predicates: !Array.<!xmldom.XPathAtom>,
+        location:   string
+    }>,
+    value: *
+}}*/
+xmldom.XPathAtom;
+
+/**
+ * @return {!{getODFElementsWithXPath:function(!Element,!string,!function(string):?string):!Array.<Element>}}
+ */
+function createXPathSingleton() {
     "use strict";
-    var createXPathPathIterator,
+    var /**@type{function(!xmldom.XPathIterator,!xmldom.XPathAtom,!Function):!xmldom.XPathIterator}*/
+        createXPathPathIterator,
+        /**@type{function(string,number,!Array.<!xmldom.XPathAtom>):number}*/
         parsePredicates;
     /**
      * @param {!number} a
@@ -57,17 +87,17 @@ xmldom.XPath = (function () {
      * @param {!number} pos
      * @param {!number} end
      * @param {!Array} steps
-     * @return {!number}
+     * @return {number}
      */
     function parseXPathStep(xpath, pos, end, steps) {
         var location = "",
             predicates = [],
-            value,
+            /**@type{number}*/
             brapos = xpath.indexOf('[', pos),
+            /**@type{number}*/
             slapos = xpath.indexOf('/', pos),
-            eqpos = xpath.indexOf('=', pos),
-            depth = 0,
-            start = 0;
+            /**@type{number}*/
+            eqpos = xpath.indexOf('=', pos);
         // parse the location
         if (isSmallestPositive(slapos, brapos, eqpos)) {
             location = xpath.substring(pos, slapos);
@@ -85,8 +115,13 @@ xmldom.XPath = (function () {
         steps.push({location: location, predicates: predicates});
         return pos;
     }
+    /**
+     * @param {string} xpath
+     * @return {!xmldom.XPathAtom}
+     */
     function parseXPath(xpath) {
-        var steps = [],
+        var /**@type{!Array.<{predicates: !Array.<!xmldom.XPathAtom>,location:string}>}*/
+            steps = [],
             p = 0,
             end = xpath.length,
             value;
@@ -100,7 +135,7 @@ xmldom.XPath = (function () {
                 } else {
                     try {
                         value = parseInt(value, 10);
-                    } catch (e) {
+                    } catch (ignore) {
                     }
                 }
                 p = end;
@@ -108,10 +143,15 @@ xmldom.XPath = (function () {
         }
         return {steps: steps, value: value};
     }
+    /**
+     * @param {string} xpath
+     * @param {number} start
+     * @param {!Array.<!xmldom.XPathAtom>} predicates
+     * @return {number}
+     */
     parsePredicates = function parsePredicates(xpath, start, predicates) {
         var pos = start,
             l = xpath.length,
-            selector,
             depth = 0;
         while (pos < l) {
             if (xpath[pos] === ']') {
@@ -130,35 +170,34 @@ xmldom.XPath = (function () {
         return pos;
     };
     /**
-     * Iterator over nodes uses in the xpath implementation
-     * @class
-     * @interface
-     */
-    function XPathIterator() {}
-    /**
-     * @return {Node}
-     */
-    XPathIterator.prototype.next = function () {};
-    /**
-     * @return {undefined}
-     */
-    XPathIterator.prototype.reset = function () {};
-    /**
      * @class
      * @constructor
-     * @augments XPathIterator
-     * @implements {XPathIterator}
+     * @augments xmldom.XPathIterator
+     * @implements {xmldom.XPathIterator}
      */
     function XPathNodeIterator() {
-        var node, done = false;
+        var /**@type{?Node}*/
+            node = null,
+            /**@type{boolean}*/
+            done = false;
+        /**
+         * @param {?Node} n
+         * @return {undefined}
+         */
         this.setNode = function setNode(n) {
             node = n;
         };
+        /**
+         * @return {undefined}
+         */
         this.reset = function () {
             done = false;
         };
+        /**
+         * @return {?Node}
+         */
         this.next = function next() {
-            var val = (done) ? null : node;
+            var val = done ? null : node;
             done = true;
             return val;
         };
@@ -166,9 +205,9 @@ xmldom.XPath = (function () {
     /**
      * @class
      * @constructor
-     * @augments XPathIterator
-     * @implements {XPathIterator}
-     * @param {XPathIterator} it
+     * @augments xmldom.XPathIterator
+     * @implements {xmldom.XPathIterator}
+     * @param {xmldom.XPathIterator} it
      * @param {!string} namespace
      * @param {!string} localName
      */
@@ -176,10 +215,18 @@ xmldom.XPath = (function () {
         this.reset = function reset() {
             it.reset();
         };
+        /**
+         * @return {?Node}
+         */
         this.next = function next() {
-            var node = it.next(), attr;
+            var node = it.next();
             while (node) {
-                node = node.getAttributeNodeNS(namespace, localName);
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    node = /**@type{!Element}*/(node).getAttributeNodeNS(
+                        namespace,
+                        localName
+                    );
+                }
                 if (node) {
                     return node;
                 }
@@ -191,9 +238,9 @@ xmldom.XPath = (function () {
     /**
      * @class
      * @constructor
-     * @augments XPathIterator
-     * @implements {XPathIterator}
-     * @param {XPathIterator} it
+     * @augments xmldom.XPathIterator
+     * @implements {xmldom.XPathIterator}
+     * @param {xmldom.XPathIterator} it
      * @param {boolean} recurse
      */
     function AllChildElementIterator(it, recurse) {
@@ -228,7 +275,7 @@ xmldom.XPath = (function () {
                         }
                     } while (root && !node);
                 }
-                if (node && node.nodeType === 1) {
+                if (node && node.nodeType === Node.ELEMENT_NODE) {
                     return node;
                 }
             }
@@ -238,9 +285,9 @@ xmldom.XPath = (function () {
     /**
      * @class
      * @constructor
-     * @augments XPathIterator
-     * @implements {XPathIterator}
-     * @param {XPathIterator} it
+     * @augments xmldom.XPathIterator
+     * @implements {xmldom.XPathIterator}
+     * @param {xmldom.XPathIterator} it
      * @param {function(Node):boolean} condition
      */
     function ConditionIterator(it, condition) {
@@ -256,9 +303,9 @@ xmldom.XPath = (function () {
         };
     }
     /**
-     * @param {XPathIterator} it
+     * @param {xmldom.XPathIterator} it
      * @param {string} name
-     * @param {function(string):string} namespaceResolver
+     * @param {function(string):?string} namespaceResolver
      * @return {!ConditionIterator}
      */
     function createNodenameFilter(it, name, namespaceResolver) {
@@ -271,9 +318,9 @@ xmldom.XPath = (function () {
         });
     }
     /**
-     * @param {XPathIterator} it
-     * @param {!Object} p
-     * @param {function(string):string} namespaceResolver
+     * @param {xmldom.XPathIterator} it
+     * @param {!xmldom.XPathAtom} p
+     * @param {function(string):?string} namespaceResolver
      * @return {!ConditionIterator}
      */
     function createPredicateFilteredIterator(it, p, namespaceResolver) {
@@ -284,7 +331,7 @@ xmldom.XPath = (function () {
             return new ConditionIterator(it, function (node) {
                 nit.setNode(node);
                 pit.reset();
-                return pit.next();
+                return pit.next() !== null;
             });
         }
         return new ConditionIterator(it, function (node) {
@@ -292,26 +339,38 @@ xmldom.XPath = (function () {
             pit.reset();
             var n = pit.next();
             // todo: distinuish between number and string
-            return n && n.nodeValue === value;
+            return n ? n.nodeValue === value : false;
         });
     }
     /**
-     * @param {!XPathIterator} it
-     * @param {!Object} xpath
-     * @param {!Function} namespaceResolver
-     * @return {!XPathIterator}
+     * @param {!Array.<!xmldom.XPathAtom>} p
+     * @param {!number} i
+     * @return {!xmldom.XPathAtom}
+     */
+    function item(p, i) {
+        return p[i];
+    }
+    /**
+     * @param {!xmldom.XPathIterator} it
+     * @param {!xmldom.XPathAtom} xpath
+     * @param {!function(string):?string} namespaceResolver
+     * @return {!xmldom.XPathIterator}
      */
     createXPathPathIterator = function createXPathPathIterator(it, xpath,
                 namespaceResolver) {
-        var i, j, step, location, namespace, localName, prefix, p;
+        var i, j, step, location, s, p, ns;
         for (i = 0; i < xpath.steps.length; i += 1) {
             step = xpath.steps[i];
             location = step.location;
             if (location === "") {
                 it = new AllChildElementIterator(it, false);
             } else if (location[0] === '@') {
-                p = location.slice(1).split(":", 2);
-                it = new AttributeIterator(it, namespaceResolver(p[0]), p[1]);
+                s = location.substr(1).split(":", 2);
+                ns = namespaceResolver(s[0]);
+                if (!ns) {
+                    throw "No namespace associated with the prefix " + s[0];
+                }
+                it = new AttributeIterator(it, ns, s[1]);
             } else if (location !== ".") {
                 it = new AllChildElementIterator(it, false);
                 if (location.indexOf(":") !== -1) {
@@ -319,7 +378,7 @@ xmldom.XPath = (function () {
                 }
             }
             for (j = 0; j < step.predicates.length; j += 1) {
-                p = step.predicates[j];
+                p = item(step.predicates, j);
                 it = createPredicateFilteredIterator(it, p, namespaceResolver);
             }
         }
@@ -328,15 +387,14 @@ xmldom.XPath = (function () {
     /**
      * @param {!Element} node
      * @param {!string} xpath
-     * @param {!Function} namespaceResolver
+     * @param {!function(string):?string} namespaceResolver
      * @return {!Array.<Element>}
      */
     function fallback(node, xpath, namespaceResolver) {
         var it = new XPathNodeIterator(),
             i,
             nodelist,
-            parsedXPath,
-            pos;
+            parsedXPath;
         it.setNode(node);
         parsedXPath = parseXPath(xpath);
         it = createXPathPathIterator(it, parsedXPath, namespaceResolver);
@@ -351,7 +409,7 @@ xmldom.XPath = (function () {
     /**
      * @param {!Element} node
      * @param {!string} xpath
-     * @param {!Function} namespaceResolver
+     * @param {!function(string):?string} namespaceResolver
      * @return {!Array.<Element>}
      */
     function getODFElementsWithXPath(node, xpath, namespaceResolver) {
@@ -359,14 +417,14 @@ xmldom.XPath = (function () {
             nodes,
             elements = [],
             n = null;
-        if (!doc || !doc.evaluate) {
+        if (!doc || typeof doc.evaluate !== 'function') {
             elements = fallback(node, xpath, namespaceResolver);
         } else {
             nodes = doc.evaluate(xpath, node, namespaceResolver,
                 XPathResult.UNORDERED_NODE_ITERATOR_TYPE, null);
             n = nodes.iterateNext();
             while (n !== null) {
-                if (n.nodeType === 1) {
+                if (n.nodeType === Node.ELEMENT_NODE) {
                     elements.push(n);
                 }
                 n = nodes.iterateNext();
@@ -374,12 +432,13 @@ xmldom.XPath = (function () {
         }
         return elements;
     }
-    /**
-     * @constructor
-     * @return {?}
-     */
-    xmldom.XPath = function XPath() {
-        this.getODFElementsWithXPath = getODFElementsWithXPath;
+    return {
+        getODFElementsWithXPath: getODFElementsWithXPath
     };
-    return xmldom.XPath;
-}());
+}
+/**
+ * Wrapper for XPath functions
+ * @const
+ * @type {!{getODFElementsWithXPath:function(!Element,!string,!function(string):?string):!Array.<Element>}}
+ */
+xmldom.XPath = createXPathSingleton();

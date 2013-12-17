@@ -1,6 +1,7 @@
 /**
- * Copyright (C) 2012 KO GmbH <copyright@kogmbh.com>
-
+ * @license
+ * Copyright (C) 2012-2013 KO GmbH <copyright@kogmbh.com>
+ *
  * @licstart
  * The JavaScript code in this page is free software: you can redistribute it
  * and/or modify it under the terms of the GNU Affero General Public License
@@ -8,6 +9,9 @@
  * the License, or (at your option) any later version.  The code is distributed
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
  *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
@@ -29,91 +33,36 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
 
 /*global ops, runtime */
 
-function SessionList(net) {
-    "use strict";
+/**
+ * A model which provides information about sessions.
+ * @interface
+ */
+function SessionList() {"use strict"; };
 
-    var cachedSessionData = {},
-        subscribers = [];
+/**
+ * @param {{onCreated:function(!Object),
+ *          onUpdated:function(!Object),
+ *          onRemoved:function(!string) }} subscriber
+ * @return {undefined}
+ */
+SessionList.prototype.getSessions = function (subscriber) {"use strict"; };
 
-    function onSessionData(sessionData) {
-        var i,
-            isNew = ! cachedSessionData.hasOwnProperty(sessionData.id);
+/**
+ * @param {{onCreated:function(!Object),
+ *          onUpdated:function(!Object),
+ *          onRemoved:function(!string) }} subscriber
+ * @return {undefined}
+ */
+SessionList.prototype.unsubscribe = function (subscriber) {"use strict"; };
 
-        // cache
-        cachedSessionData[sessionData.id] = sessionData;
-        runtime.log("get session data for:"+sessionData.title+", is new:"+isNew);
-
-        for (i = 0; i < subscribers.length; i += 1) {
-            if (isNew) {
-                subscribers[i].onCreated(sessionData);
-            } else {
-                subscribers[i].onUpdated(sessionData);
-            }
-        }
-    }
-
-    function onSessionRemoved(sessionId) {
-        var i;
-
-        if (cachedSessionData.hasOwnProperty(sessionId)) {
-            delete cachedSessionData[sessionId];
-
-            for (i = 0; i < subscribers.length; i += 1) {
-                subscribers[i].onRemoved(sessionId);
-            }
-        }
-    }
-
-    this.getSessions = function (subscriber) {
-        var i,
-            sessionList = [];
-
-        if (subscriber) {
-            subscribers.push(subscriber);
-        }
-
-        for (i in cachedSessionData) {
-            if (cachedSessionData.hasOwnProperty(i)) {
-                sessionList.push(cachedSessionData[i]);
-            }
-        }
-
-        return sessionList;
-    };
-
-    this.unsubscribe = function (subscriber) {
-        var i;
-
-        for (i=0; i<subscribers.length; i+=1) {
-            if (subscribers[i] === subscriber) {
-                break;
-            }
-        }
-
-        runtime.assert((i < subscribers.length),
-                        "tried to unsubscribe when not subscribed.");
-
-        subscribers.splice(i,1);
-    };
-
-    function init() {
-        net.onSessionAdded = onSessionData;
-        net.onSessionChanged = onSessionData;
-        net.onSessionRemoved = onSessionRemoved;
-
-        net.getSessionList( function(sessionList) {
-            var idx;
-        runtime.log("get sessions on init:"+sessionList.length);
-            for (idx=0; idx<sessionList.length; idx+=1) {
-                onSessionData(sessionList[idx])
-            }
-        });
-    }
-
-    init();
-}
+/**
+ * Per default updates are enabled.
+ * @param {!boolean} enabled
+ * @return {undefined}
+ */
+SessionList.prototype.setUpdatesEnabled = function (enabled) {"use strict"; };

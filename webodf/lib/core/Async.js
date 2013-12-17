@@ -8,6 +8,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -28,7 +31,7 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
 /*global core*/
 
@@ -44,7 +47,13 @@ core.Async = function Async() {
      * @return {undefined}
      */
     this.forEach = function (items, f, callback) {
-        var i, l = items.length, itemsDone = 0;
+        var i, l = items.length,
+            /**@type{!number}*/
+            itemsDone = 0;
+        /**
+         * @param {?string} err
+         * @return {undefined}
+         */
         function end(err) {
             if (itemsDone !== l) {
                 if (err) {
@@ -61,5 +70,30 @@ core.Async = function Async() {
         for (i = 0; i < l; i += 1) {
             f(items[i], end);
         }
+    };
+
+    /**
+     * @param {!Array.<!function(!function(!Object=))>} items
+     * @param {!function(!Object=)} callback
+     * @return {undefined}
+     */
+    this.destroyAll = function (items, callback) {
+        /**
+         * @param {!number} itemIndex
+         * @param {!Object|undefined} err
+         * @return {undefined}
+         */
+        function destroy(itemIndex, err) {
+            if (err) {
+                callback(err);
+            } else {
+                if (itemIndex < items.length) {
+                    items[itemIndex](function (err) { destroy(itemIndex + 1, err); });
+                } else {
+                    callback();
+                }
+            }
+        }
+        destroy(0, undefined);
     };
 };

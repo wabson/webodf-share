@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Internet Explorer Behaviours</title>
+    <style>
+        .success { font-weight: bold; color: green }
+        .fail { font-weight: bold; color: red }
+    </style>
+    <script type="text/javascript">
+        function performTest(delegate, area) {
+            var result, summary = "";
+            try {
+                result = delegate(area);
+            } catch(e) {
+                result = false;
+                summary = " - " + e.message;
+            }
+            if (result !== false) {
+                return "<span class='success'>success</span>" + summary;
+            }
+            return "<span class='fail'>failed</span>" + summary;
+        }
+
+        function test(name, delegate) {
+            var testArea = document.getElementById("testArea");
+            document.writeln("<div>" + name + ": " + performTest(delegate, testArea) + "</div>");
+            while (testArea.firstChild) {
+                testArea.removeChild(testArea.firstChild);
+            }
+        }
+    </script>
+</head>
+<body>
+<div id="testArea">
+
+</div>
+<script type="text/javascript">
+    test("Node.insertBefore with undefined", function(area) {
+        var newNode = document.createElement("span");
+        area.insertBefore(newNode, undefined);
+    });
+
+    test("Node.insertBefore with undefined (child nodes)", function(area) {
+        var newNode = document.createElement("span");
+        area.insertBefore(newNode, newNode.childNodes[0]);
+    });
+
+    test("Selection.extend support", function(area) {
+        window.getSelection().collapse(area, 0);
+        window.getSelection().extend(area, 0);
+    });
+
+    test("Node.contains impl", function(area) {
+        var newNode = document.createTextNode("really IE?");
+        area.appendChild(newNode);
+        return area.contains(newNode) === true;
+    });
+
+    test("Range.comparePoint", function(area) {
+        var range = document.createRange();
+        range.comparePoint(area, 0);
+    });
+
+    test("TreeWalker with text node root", function(area) {
+        var newNode = document.createTextNode("span"),
+            treeWalker;
+        area.appendChild(newNode);
+        function noopFilter () {
+            return NodeFilter.FILTER_ACCEPT;
+        }
+        treeWalker = document.createTreeWalker(newNode, NodeFilter.SHOW_ALL, noopFilter, false);
+        treeWalker.nextNode();
+    });
+
+    test("Changing selection preserves focus", function(area) {
+        var newNode = document.createTextNode("really IE?"),
+                range = document.createRange(),
+                result;
+        area.appendChild(newNode);
+        area.tabIndex = -1;
+        area.focus();
+        result = document.activeElement === area;
+
+        window.getSelection().removeAllRanges();
+        range.selectNodeContents(newNode);
+        window.getSelection().addRange(range);
+        result = result && document.activeElement === area;
+
+        area.tabIndex = undefined;
+        return result;
+    });
+</script>
+</body>
+</html>

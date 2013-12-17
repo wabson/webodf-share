@@ -8,6 +8,9 @@
  * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU AGPL for more details.
  *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this code.  If not, see <http://www.gnu.org/licenses/>.
+ *
  * As additional permission under GNU AGPL version 3 section 7, you
  * may distribute non-source (e.g., minimized or compacted) forms of
  * that code without the copy of the GNU GPL normally required by
@@ -28,10 +31,30 @@
  * This license applies to this entire compilation.
  * @licend
  * @source: http://www.webodf.org/
- * @source: http://gitorious.org/webodf/webodf/
+ * @source: https://github.com/kogmbh/WebODF/
  */
-/*global Packages, HTMLStyleElement, window, XMLHttpRequest, HTMLStyleElement, Document*/
-/*jslint nomen: false */
+/*global Packages, HTMLStyleElement, window, XMLHttpRequest, HTMLStyleElement, Document, NodeFilter, Range*/
+/*jslint nomen: false, emptyblock: true, unparam: true */
+/**
+ * @constructor
+ */
+function NodeStats() {"use strict"; }
+/**
+ * @return {!boolean}
+ */
+NodeStats.prototype.isFile = function () {"use strict"; };
+/**
+ * @type {!number}
+ */
+NodeStats.prototype.size = 0;
+/**
+ * @constructor
+ */
+function NodeStream() {"use strict"; }
+/**
+ * @param {!string} str
+ */
+NodeStream.prototype.write = function (str) {"use strict"; };
 /**
  * @constructor
  */
@@ -43,21 +66,21 @@ function NodeJSObject() {"use strict"; }
 NodeJSObject.prototype.resolve = function (items) {"use strict"; };
 /**
  * @param {!string} path
- * @param {function(...)} callback
+ * @param {function(?string,?NodeStats)} callback
  * @return {undefined}
  */
 NodeJSObject.prototype.stat = function (path, callback) {"use strict"; };
 /**
  * @param {!string} path
  * @param {?string} encoding
- * @param {function(...)} callback
+ * @param {function(?string,(?string|?Buffer))} callback
  * @return {?string}
  */
 NodeJSObject.prototype.readFile = function (path, encoding, callback) {"use strict"; };
 /**
  * @param {!string} path
  * @param {?string} encoding
- * @return {?string}
+ * @return {!string|!Buffer}
  */
 NodeJSObject.prototype.readFileSync = function (path, encoding) {"use strict"; };
 /**
@@ -81,7 +104,7 @@ NodeJSObject.prototype.read = function (fd, buffer, offset, length, position,
         callback) {"use strict"; };
 /**
  * @param {!string} path
- * @param {!string} data
+ * @param {!string|!Buffer} data
  * @param {!string} encoding
  * @param {!function(?string):undefined} callback
  * @return {undefined}
@@ -123,7 +146,7 @@ function require(className) {"use strict"; }
  */
 function NodeJSConsole() {"use strict"; }
 /**
- * @param {!string} msg
+ * @param {*} msg
  * @return {undefined}
  */
 NodeJSConsole.prototype.log = function (msg) {"use strict"; };
@@ -145,9 +168,9 @@ NodeJSProcess.prototype.exit = function (exitCode) {"use strict"; };
  */
 NodeJSProcess.prototype.argv = [];
 /**
- * @type {!Object}
+ * @type {!NodeStream}
  */
-NodeJSProcess.prototype.stderr = {};
+NodeJSProcess.prototype.stderr;
 
 /**
  * @namespace
@@ -160,16 +183,20 @@ var now;
 /**
  * @type {function(!Array):Object}
  */
-now.deliverOp = function(spec) { "use strict"; };
+now.deliverOp = function (spec) { "use strict"; };
 
 /**
- * @type {function(!function(...), !function(!number)):Object}
+ * @type {function(!string):Object}
  */
-now.getAllKnownUserData = function(data_cb, done_cb) { "use strict"; };
+now.subscribeUserDetailsUpdates = function (memberId) { "use strict"; };
+/**
+ * @type {function(!string):Object}
+ */
+now.unsubscribeUserDetailsUpdates = function (memberId) { "use strict"; };
 /**
  * @type {function(!string, !function(!boolean)):Object}
  */
-now.joinSession = function(sessionId, done_cb) { "use strict"; };
+now.joinSession = function (sessionId, done_cb) { "use strict"; };
 
 
 /**
@@ -182,10 +209,14 @@ var process;
 var __dirname;
 /**
  * @constructor
- * @param {!number|!Array.<!number>|!string} arg1
+ * @param {!number|!Array.<!number>|!string|!Uint8Array} arg1
  * @param {!string=} encoding
  */
 function Buffer(arg1, encoding) {"use strict"; }
+/**
+ * @type{!number}
+ */
+Buffer.prototype.length = 0;
 /**
  * @param {!string} msg
  * @return {undefined}
@@ -203,9 +234,9 @@ function readFile(path, encoding) {"use strict"; }
  */
 function quit(exitCode) {"use strict"; }
 /**
- * @namespace
+ * @typedef {!Object}
  */
-Packages.javax = {};
+Packages.javax;
 /**
  * @namespace
  */
@@ -233,8 +264,8 @@ Packages.javax.xml.parsers.DocumentBuilder = function () {"use strict"; };
 Packages.javax.xml.parsers.DocumentBuilder.prototype.setEntityResolver =
     function (entityresolver) {"use strict"; };
 /**
- * @param {!Packages.org.xml.sax.InputSource} source 
- * @return {Document}
+ * @param {!Packages.org.xml.sax.InputSource|!Packages.java.io.File} source
+ * @return {?Document}
  */
 Packages.javax.xml.parsers.DocumentBuilder.prototype.parse =
     function (source) {"use strict"; };
@@ -247,6 +278,14 @@ Packages.javax.xml.parsers.DocumentBuilder.prototype.getDOMImplementation =
  * @constructor
  */
 Packages.javax.xml.parsers.DocumentBuilderFactory = function () {"use strict"; };
+/**
+ * @constructor
+ */
+Packages.DocumentBuilderFactory = function () {"use strict"; };
+/**
+ * @return {!Packages.javax.xml.parsers.DocumentBuilderFactory}
+ */
+Packages.newInstance = function () {"use strict"; };
 /**
  * @return {!Packages.javax.xml.parsers.DocumentBuilderFactory}
  */
@@ -277,9 +316,9 @@ Packages.javax.xml.parsers.DocumentBuilderFactory.prototype.setSchema =
 Packages.javax.xml.parsers.DocumentBuilderFactory.prototype.newDocumentBuilder =
     function () {"use strict"; };
 /**
- * @namespace
+ * @typedef {!Object}
  */
-Packages.org = {};
+Packages.org;
 /**
  * @namespace
  */
@@ -290,6 +329,10 @@ Packages.org.xml.sax = {};
  */
 Packages.org.xml.sax.EntityResolver = function (definition) {"use strict"; };
 /**
+ * @typedef {!Object}
+ */
+Packages.java;
+/**
  * @namespace
  */
 Packages.java.io = {};
@@ -297,7 +340,38 @@ Packages.java.io = {};
  * @constructor
  * @param {!string} path
  */
-Packages.java.io.FileReader = function (path) {"use strict"; };
+Packages.java.io.File = function (path) {"use strict"; };
+/**
+ * @return {!boolean}
+ */
+Packages.java.io.File.prototype.isFile = function () {"use strict"; };
+/**
+ * @return {!boolean}
+ */
+Packages.java.io.File.prototype['delete'] = function () {"use strict"; };
+/**
+ * @param {!Packages.java.io.File} other
+ * @return {!boolean}
+ */
+Packages.java.io.File.prototype.rename = function (other) {"use strict"; };
+/**
+ * @return {undefined}
+ */
+Packages.java.io.File.prototype.deleteOnExit = function () {"use strict"; };
+/**
+ * @return {!number}
+ */
+Packages.java.io.File.prototype.length = function () {"use strict"; };
+/**
+ * @constructor
+ */
+Packages.java.io.Reader = function () {"use strict"; };
+/**
+ * @constructor
+ * @extends Packages.java.io.Reader
+ * @param {!string} string
+ */
+Packages.java.io.StringReader = function (string) {"use strict"; };
 /**
  * @constructor
  * @param {!string} path
@@ -314,7 +388,7 @@ Packages.java.io.FileOutputStream.prototype.write = function (b) {"use strict"; 
 Packages.java.io.FileOutputStream.prototype.close = function () {"use strict"; };
 /**
  * @constructor
- * @param {!Packages.java.io.FileReader} reader
+ * @param {!Packages.java.io.Reader|!string} reader
  */
 Packages.org.xml.sax.InputSource = function (reader) {"use strict"; };
 /**
@@ -323,12 +397,25 @@ Packages.org.xml.sax.InputSource = function (reader) {"use strict"; };
 HTMLStyleElement.prototype.sheet;
 XMLHttpRequest.prototype.sendAsBinary = function (data) {"use strict"; };
 /**
- * @const@type{!string}
+ * @const
+ * @type{!string}
  */
 XMLHttpRequest.prototype.responseBody;
-window.nativeio = {};
-var VBArray = {};
+/**
+ * @constructor
+ * @param {!string} s
+ */
+function VBArray(s) {"use strict"; }
+/**
+ * @return {!Array.<number>}
+ */
 VBArray.prototype.toArray = function () {"use strict"; };
+/**
+ * @constructor
+ * @extends HTMLElement
+ */
+function IEElement() {"use strict"; };
+IEElement.prototype.setActive = function () {"use strict"; };
 /**
  * @interface
  */
@@ -350,7 +437,7 @@ TreeWalker.prototype.filter;
  */
 TreeWalker.prototype.expandEntityReferences;
 /**
- * @type{Node}
+ * @type{!Node}
  */
 TreeWalker.prototype.currentNode;
 /**
@@ -400,7 +487,7 @@ NodeIterator.prototype.detach = function () {"use strict"; };
 /**
  * @param {!Node} root
  * @param {!number} whatToShow
- * @param {function(!Node):boolean=} filter
+ * @param {function(!Node):number=} filter
  * @param {boolean=} entityReferenceExpansion
  * @return {!TreeWalker}
  */
@@ -408,8 +495,123 @@ Document.prototype.createTreeWalker = function (root, whatToShow, filter, entity
 /**
  * @param {!Node} root
  * @param {!number} whatToShow
- * @param {function(!Node):boolean=} filter
- * @param {boolean=} entityReferenceExpansion
+ * @param {?function(!Node):number} filter
+ * @param {boolean} entityReferenceExpansion
  * @return {!NodeIterator}
  */
 Document.prototype.createNodeIterator = function (root, whatToShow, filter, entityReferenceExpansion) {"use strict"; };
+/**
+ * @param {string} xpathExpression
+ * @param {!Node} contextNode
+ * @param {!function(string):?string} namespaceResolver
+ * @param {?number=} resultType
+ * @param {*=} result
+ * @return {XPathResult}
+ */
+Document.prototype.evaluate = function (xpathExpression, contextNode, namespaceResolver, resultType, result) {"use strict"; };
+
+/**
+ * http://www.w3.org/TR/DOM-Level-2-Traversal-Range/traversal.html#Traversal-NodeFilter
+ * @interface
+ */
+// Already defined as a deprecated class...
+//function NodeFilter() {"use strict"; }
+
+// Constants returned by acceptNode
+/**
+ * @type {!number}
+ */
+NodeFilter.FILTER_ACCEPT                  = 1;
+/**
+ * @type {!number}
+ */
+NodeFilter.FILTER_REJECT                  = 2;
+/**
+ * @type {!number}
+ */
+NodeFilter.FILTER_SKIP                    = 3;
+
+
+// Constants for whatToShow
+/**
+ * @type {!number}
+ */
+NodeFilter.SHOW_ALL                       = 0xFFFFFFFF;
+/**
+ * @type {!number}
+ */
+NodeFilter.SHOW_ELEMENT                   = 0x00000001;
+/**
+ * @type {!number}
+ */
+NodeFilter.SHOW_ATTRIBUTE                 = 0x00000002;
+/**
+ * @const @type {!number}
+ */
+NodeFilter.SHOW_TEXT                      = 0x00000004;
+/**
+ * @type {!number}
+ */
+NodeFilter.SHOW_CDATA_SECTION             = 0x00000008;
+/**
+ * @type {!number}
+ */
+NodeFilter.SHOW_ENTITY_REFERENCE          = 0x00000010;
+/**
+ * @type {!number}
+ */
+NodeFilter.SHOW_ENTITY                    = 0x00000020;
+/**
+ * @type {!number}
+ */
+NodeFilter.SHOW_PROCESSING_INSTRUCTION    = 0x00000040;
+/**
+ * @type {!number}
+ */
+NodeFilter.SHOW_COMMENT                   = 0x00000080;
+/**
+ * @type {!number}
+ */
+NodeFilter.SHOW_DOCUMENT                  = 0x00000100;
+/**
+ * @type {!number}
+ */
+NodeFilter.SHOW_DOCUMENT_TYPE             = 0x00000200;
+/**
+ * @type {!number}
+ */
+NodeFilter.SHOW_DOCUMENT_FRAGMENT         = 0x00000400;
+/**
+ * @type {!number}
+ */
+NodeFilter.SHOW_NOTATION                  = 0x00000800;
+
+/**
+ * @param {!Node} node
+ * @return {!number}
+ */
+NodeFilter.prototype.acceptNode = function (node) {"use strict"; };
+
+/**
+ * http://dom.spec.whatwg.org/#interface-range
+ * @type {!number}
+ */
+Range.START_TO_START = 0;
+
+/**
+ * http://dom.spec.whatwg.org/#interface-range
+ * @type {!number}
+ */
+Range.START_TO_END = 1;
+
+/**
+ * http://dom.spec.whatwg.org/#interface-range
+ * @type {!number}
+ */
+Range.END_TO_END = 2;
+
+/**
+ * http://dom.spec.whatwg.org/#interface-range
+ * @type {!number}
+ */
+Range.END_TO_START = 3;
